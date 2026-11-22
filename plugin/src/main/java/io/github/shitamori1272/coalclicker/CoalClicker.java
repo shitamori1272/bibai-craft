@@ -1,7 +1,11 @@
 package io.github.shitamori1272.coalclicker;
 
+import io.github.shitamori1272.coalclicker.admin.GiveCommand;
+import io.github.shitamori1272.coalclicker.admin.ResetCommand;
 import io.github.shitamori1272.coalclicker.command.CoalCommand;
 import io.github.shitamori1272.coalclicker.data.DataStore;
+import io.github.shitamori1272.coalclicker.hud.ActionBarTask;
+import io.github.shitamori1272.coalclicker.hud.StatusCommand;
 import io.github.shitamori1272.coalclicker.world.MineWorld;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import java.util.List;
@@ -21,6 +25,10 @@ public final class CoalClicker extends JavaPlugin {
         dataStore = new DataStore(this);
         dataStore.start();
         // サブコマンドは各機能がここで command.register(...) する
+        ActionBarTask.start(this, dataStore);
+        command.register(new StatusCommand(dataStore));
+        command.register(new GiveCommand(dataStore));
+        command.register(new ResetCommand(dataStore));
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register("coal", "石炭クリッカー", List.of(), command));
         getLogger().info("石炭クリッカーを有効にしました");
