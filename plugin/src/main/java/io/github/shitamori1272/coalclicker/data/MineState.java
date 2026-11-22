@@ -21,6 +21,14 @@ public final class MineState {
         this.onChange = onChange;
     }
 
+    /** 変更通知を出さずに other の値を写す。 */
+    void copyFrom(MineState other) {
+        section = other.section;
+        level = other.level;
+        progress = other.progress;
+        maxReachedLevel = other.maxReachedLevel;
+    }
+
     /** 区画番号。未割り当てなら {@link #NO_SECTION}。 */
     public int section() {
         return section;

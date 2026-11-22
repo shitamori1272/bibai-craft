@@ -2,6 +2,8 @@ package io.github.shitamori1272.coalclicker.data;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.shitamori1272.coalclicker.number.BigNum;
@@ -143,5 +145,48 @@ class DataCodecTest {
         assertEquals(server.serverTotalMined(), back.serverTotalMined());
         assertFalse(back.isDirty());
         assertEquals(2, back.allocateSection());
+    }
+
+    @Test
+    void 不正な値は例外になる() {
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("coal", "nope")));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("tools", Map.of("lamp", 1.5))));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("tools", Map.of("lamp", -1))));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("tools", "lamp")));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("explained", "lamp")));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("mine", Map.of("section", 4294967296L))));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("mine", Map.of("level", -1))));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("mine", Map.of("progress", 1.5))));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("lastSeen", "99999999999999999999")));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodeServer(Map.of("nextSection", 4294967296L)));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodeServer(Map.of("nextSection", "1.5")));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodeServer(Map.of("nextSection", -1)));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodeServer(Map.of("serverTotalMined", Double.NaN)));
+    }
+
+    @Test
+    void 整数として正確な値は読める() {
+        assertEquals(3, DataCodec.decodePlayer(ID, Map.of("tools", Map.of("lamp", 3.0))).getToolCount("lamp"));
+        assertEquals(4, DataCodec.decodeServer(Map.of("nextSection", "4")).nextSection());
+    }
+
+    @Test
+    void 写しは元と独立している() {
+        PlayerData data = new PlayerData(ID);
+        data.addTool("lamp", 2);
+        data.markExplained("lamp");
+        data.mine().setLevel(5);
+        PlayerData copy = data.copy();
+        assertNotSame(data.mine(), copy.mine());
+        assertFalse(copy.isDirty());
+        copy.addTool("lamp", 1);
+        copy.markExplained("drill");
+        copy.mine().setLevel(6);
+        copy.setCoal(BigNum.of(10));
+        assertEquals(2, data.getToolCount("lamp"));
+        assertFalse(data.isExplained("drill"));
+        assertEquals(5, data.mine().level());
+        assertTrue(data.coal().isZero());
+        assertEquals(5, data.copy().mine().level());
     }
 }

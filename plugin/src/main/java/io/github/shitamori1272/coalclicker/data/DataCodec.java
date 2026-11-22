@@ -1,6 +1,8 @@
 package io.github.shitamori1272.coalclicker.data;
 
 import io.github.shitamori1272.coalclicker.number.BigNum;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,7 +13,8 @@ import java.util.UUID;
  * 保存データと YAML の形をした {@code Map} との変換。Bukkit に依存しないので単体テストできる。
  *
  * <p>形は企画書 8 章のとおり。BigNum は {@link BigNum#toString()} の文字列で持つ。
- * 読み込みは手で編集したファイルも受け付けるよう、数値・文字列のどちらでも読める。
+ * 読み込みでは、ない項目は初期値にする。数値は数値・文字列のどちらでも読めるが、
+ * 読めない値・範囲外の値・整数でない値は丸めずに {@link IllegalArgumentException} を投げる（壊れたファイルとして扱う）。
  */
 public final class DataCodec {
 
@@ -36,25 +39,57 @@ public final class DataCodec {
         return root;
     }
 
-    /** {@code players/<UUID>.yml} の中身から読み込む。ない項目は初期値になる。返す値は保存不要（dirty でない）状態。 */
+    /**
+     * {@code players/<UUID>.yml} の中身から読み込む。返す値は保存不要（dirty でない）状態。
+     *
+     * @throws IllegalArgumentException 値が不正なとき
+     */
     public static PlayerData decodePlayer(UUID uuid, Map<String, ?> root) {
         PlayerData data = new PlayerData(uuid);
-        data.setCoal(bigNum(root.get("coal")));
-        data.setTotalMined(bigNum(root.get("totalMined")));
-        if (root.get("tools") instanceof Map<?, ?> tools) {
-            tools.forEach((id, count) -> data.setToolCount(String.valueOf(id), longValue(count, 0)));
+        data.setCoal(bigNum(root, "coal"));
+        data.setTotalMined(bigNum(root, "totalMined"));
+        Map<?, ?> tools = map(root, "tools");
+        if (tools != null) {
+            tools.forEach((id, count) -> {
+                long n = exactLong(count, "tools." + id);
+                if (n < 0) {
+                    throw new IllegalArgumentException("tools." + id + " が負の数です: " + n);
+                }
+                data.setToolCount(String.valueOf(id), n);
+            });
         }
-        if (root.get("explained") instanceof List<?> explained) {
-            explained.forEach(id -> data.markExplained(String.valueOf(id)));
+        Object explained = root.get("explained");
+        if (explained instanceof List<?> list) {
+            list.forEach(id -> data.markExplained(String.valueOf(id)));
+        } else if (explained != null) {
+            throw new IllegalArgumentException("explained がリストではありません: " + explained);
         }
-        if (root.get("mine") instanceof Map<?, ?> mineMap) {
+        Map<?, ?> mineMap = map(root, "mine");
+        if (mineMap != null) {
             MineState mine = data.mine();
-            mine.setSection((int) longValue(mineMap.get("section"), MineState.NO_SECTION));
-            mine.setLevel(Math.max(0, longValue(mineMap.get("level"), 0)));
-            mine.setProgress(doubleValue(mineMap.get("progress")));
-            mine.setMaxReachedLevel(Math.max(0, longValue(mineMap.get("maxReachedLevel"), 0)));
+            Object section = mineMap.get("section");
+            if (section != null) {
+                int s = exactInt(section, "mine.section");
+                if (s < MineState.NO_SECTION) {
+                    throw new IllegalArgumentException("mine.section が不正です: " + s);
+                }
+                mine.setSection(s);
+            }
+            mine.setLevel(nonNegativeLong(mineMap, "level", "mine.level"));
+            Object progress = mineMap.get("progress");
+            if (progress != null) {
+                double p = finiteDouble(progress, "mine.progress");
+                if (p < 0 || p > 1) {
+                    throw new IllegalArgumentException("mine.progress が 0〜1 の範囲外です: " + p);
+                }
+                mine.setProgress(p);
+            }
+            mine.setMaxReachedLevel(nonNegativeLong(mineMap, "maxReachedLevel", "mine.maxReachedLevel"));
         }
-        data.setLastSeen(longValue(root.get("lastSeen"), 0));
+        Object lastSeen = root.get("lastSeen");
+        if (lastSeen != null) {
+            data.setLastSeen(exactLong(lastSeen, "lastSeen"));
+        }
         data.clearDirty();
         return data;
     }
@@ -67,36 +102,90 @@ public final class DataCodec {
         return root;
     }
 
-    /** {@code mine.yml} の中身から読み込む。ない項目は初期値になる。返す値は保存不要（dirty でない）状態。 */
+    /**
+     * {@code mine.yml} の中身から読み込む。返す値は保存不要（dirty でない）状態。
+     *
+     * @throws IllegalArgumentException 値が不正なとき
+     */
     public static ServerData decodeServer(Map<String, ?> root) {
         ServerData data = new ServerData();
-        data.setNextSection((int) Math.max(0, longValue(root.get("nextSection"), 0)));
-        data.setServerTotalMined(bigNum(root.get("serverTotalMined")));
+        Object next = root.get("nextSection");
+        if (next != null) {
+            data.setNextSection(exactInt(next, "nextSection"));
+        }
+        data.setServerTotalMined(bigNum(root, "serverTotalMined"));
         data.clearDirty();
         return data;
     }
 
-    private static BigNum bigNum(Object value) {
-        return switch (value) {
-            case null -> BigNum.ZERO;
-            case Number n -> BigNum.of(n.doubleValue());
-            default -> BigNum.parse(value.toString());
-        };
+    private static Map<?, ?> map(Map<String, ?> root, String key) {
+        Object value = root.get(key);
+        if (value == null || value instanceof Map<?, ?>) {
+            return (Map<?, ?>) value;
+        }
+        throw new IllegalArgumentException(key + " がマップではありません: " + value);
     }
 
-    private static long longValue(Object value, long fallback) {
-        return switch (value) {
-            case null -> fallback;
-            case Number n -> n.longValue();
-            default -> Long.parseLong(value.toString().trim());
-        };
+    private static BigNum bigNum(Map<String, ?> root, String key) {
+        Object value = root.get(key);
+        try {
+            return switch (value) {
+                case null -> BigNum.ZERO;
+                case Number n -> BigNum.of(finiteDouble(n, key));
+                default -> BigNum.parse(value.toString());
+            };
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException(key + " が不正です: " + value, e);
+        }
     }
 
-    private static double doubleValue(Object value) {
-        return switch (value) {
-            case null -> 0;
-            case Number n -> n.doubleValue();
-            default -> Double.parseDouble(value.toString().trim());
-        };
+    private static long nonNegativeLong(Map<?, ?> map, String key, String label) {
+        Object value = map.get(key);
+        if (value == null) {
+            return 0;
+        }
+        long n = exactLong(value, label);
+        if (n < 0) {
+            throw new IllegalArgumentException(label + " が負の数です: " + n);
+        }
+        return n;
+    }
+
+    private static int exactInt(Object value, String label) {
+        long n = exactLong(value, label);
+        if (n < Integer.MIN_VALUE || n > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(label + " が範囲外です: " + value);
+        }
+        return (int) n;
+    }
+
+    /** 整数として正確に表せる値だけを long にする。小数部がある・範囲外・数でない値は例外。 */
+    static long exactLong(Object value, String label) {
+        try {
+            return switch (value) {
+                case Long n -> n;
+                case Integer n -> n;
+                case Short n -> n;
+                case Byte n -> n;
+                case BigInteger n -> n.longValueExact();
+                case Number n -> new BigDecimal(n.toString()).longValueExact();
+                default -> new BigDecimal(value.toString().trim()).longValueExact();
+            };
+        } catch (ArithmeticException | NumberFormatException e) {
+            throw new IllegalArgumentException(label + " が整数ではないか範囲外です: " + value, e);
+        }
+    }
+
+    private static double finiteDouble(Object value, String label) {
+        double d;
+        try {
+            d = value instanceof Number n ? n.doubleValue() : Double.parseDouble(value.toString().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(label + " が数ではありません: " + value, e);
+        }
+        if (!Double.isFinite(d)) {
+            throw new IllegalArgumentException(label + " が有限の数ではありません: " + value);
+        }
+        return d;
     }
 }

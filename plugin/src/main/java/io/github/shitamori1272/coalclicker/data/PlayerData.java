@@ -31,6 +31,19 @@ public final class PlayerData {
         this.uuid = Objects.requireNonNull(uuid);
     }
 
+    /** 道具・解説済み・坑道まで含めた独立した写しを作る。写しは保存不要（dirty でない）状態。 */
+    public PlayerData copy() {
+        PlayerData copy = new PlayerData(uuid);
+        copy.coal = coal;
+        copy.totalMined = totalMined;
+        copy.tools.putAll(tools);
+        copy.explained.addAll(explained);
+        copy.mine.copyFrom(mine);
+        copy.lastSeen = lastSeen;
+        copy.dirty = false;
+        return copy;
+    }
+
     public UUID uuid() {
         return uuid;
     }
