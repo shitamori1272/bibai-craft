@@ -44,7 +44,7 @@ public final class CoalClicker extends JavaPlugin {
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
         command.register(new ResetCommand(dataStore));
-        command.register(new TopCommand(new Leaderboard(dataStore)));
+        command.register(new TopCommand(Leaderboard.start(this, dataStore)));
         sidebar = Sidebar.start(this, dataStore);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register("coal", "石炭クリッカー", List.of(), command));

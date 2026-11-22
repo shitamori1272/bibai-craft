@@ -10,6 +10,11 @@ import java.util.Optional;
 import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.plugin.java.JavaPlugin;
 
 /**
  * ランキングの元になる全員分の値。オフラインの人も含める。
@@ -17,22 +22,36 @@ import org.bukkit.entity.Player;
  * <ul>
  *   <li>オフラインの人の値は保存ファイルを全部読んで作り、{@value #REFRESH_MILLIS} ミリ秒は使い回す
  *   <li>オンラインの人の値は毎回メモリ上の最新データで上書きする
+ *   <li>誰かがログアウトしたら使い回しをやめる（キャッシュにはオンラインの人が入っていないため）
  * </ul>
  *
  * <p>{@link DataStore} はメインスレッド専用なので、ファイルの読み込みもメインスレッドで同期的に行う。
  * 1 人 1 ファイルの小さな YAML で、読むのは 30 秒に 1 回まで（しかも /coal top を打ったときだけ）なので、
  * ハッカソン規模（数十〜数百人）なら問題ない。人数が増えたら非同期の集計に変えること。
  */
-public final class Leaderboard {
+public final class Leaderboard implements Listener {
 
     static final long REFRESH_MILLIS = 30_000;
 
     private final DataStore dataStore;
     private final ExpiringValue<Map<UUID, PlayerStats>> offline;
 
-    public Leaderboard(DataStore dataStore) {
+    private Leaderboard(DataStore dataStore) {
         this.dataStore = dataStore;
         this.offline = new ExpiringValue<>(this::loadOffline, System::currentTimeMillis, REFRESH_MILLIS);
+    }
+
+    /** 作ってログアウトのイベントを登録する。onEnable から呼ぶ。 */
+    public static Leaderboard start(JavaPlugin plugin, DataStore dataStore) {
+        Leaderboard leaderboard = new Leaderboard(dataStore);
+        Bukkit.getPluginManager().registerEvents(leaderboard, plugin);
+        return leaderboard;
+    }
+
+    // 読み直しは次の /coal top のとき。DataStore の保存より先に呼ばれても、その時点では保存済みかメモリ上にある
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        offline.invalidate();
     }
 
     /** 全員分の値（オンラインの人は最新）。 */

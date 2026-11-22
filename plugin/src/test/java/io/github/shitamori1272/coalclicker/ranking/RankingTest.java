@@ -123,6 +123,16 @@ class RankingTest {
     }
 
     @Test
+    void キャッシュを捨てると期限前でも作り直す() {
+        int[] loads = {0};
+        ExpiringValue<Integer> value = new ExpiringValue<>(() -> ++loads[0], () -> 0, 30_000);
+        assertEquals(1, value.get());
+        value.invalidate();
+        assertEquals(2, value.get());
+        assertEquals(2, value.get());
+    }
+
+    @Test
     void サイドバーの行() {
         assertEquals("全体の出炭量 0個", SidebarText.serverTotal(BigNum.ZERO));
         assertEquals("全体の出炭量 1.234万個", SidebarText.serverTotal(BigNum.of(12345)));

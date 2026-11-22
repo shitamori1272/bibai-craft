@@ -27,4 +27,9 @@ final class ExpiringValue<T> {
         }
         return value;
     }
+
+    /** 次の {@link #get()} で必ず作り直す。 */
+    void invalidate() {
+        value = null;
+    }
 }
