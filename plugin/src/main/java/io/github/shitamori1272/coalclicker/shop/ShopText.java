@@ -165,6 +165,17 @@ public final class ShopText {
 
     /** 改良の見出しの説明文（買える数とページ）。 */
     public static List<Line> upgradeHeaderLore(int count, int page) {
+        return upgradeHeaderLore(count, page, count);
+    }
+
+    /**
+     * 改良の見出しの説明文。
+     *
+     * @param count 買える改良の数
+     * @param page ページ（0 始まり）
+     * @param slotsUsed 並んでいるマスの数（購入済みのマスも含む。ページ数はこれで決まる）
+     */
+    public static List<Line> upgradeHeaderLore(int count, int page, int slotsUsed) {
         List<Line> lore = new ArrayList<>();
         if (count == 0) {
             lore.add(Line.of("まだ買える改良はありません", Tone.DESCRIPTION));
@@ -172,11 +183,11 @@ public final class ShopText {
             return lore;
         }
         lore.add(Line.of("買える改良：", count + " 個", Tone.VALUE));
-        int pages = ShopLayout.pageCount(count);
+        int pages = ShopLayout.pageCount(slotsUsed);
         if (pages > 1) {
-            lore.add(Line.of("ページ：", (ShopLayout.clampPage(page, count) + 1) + " / " + pages, Tone.VALUE));
+            lore.add(Line.of("ページ：", (ShopLayout.clampPage(page, slotsUsed) + 1) + " / " + pages, Tone.VALUE));
         }
-        lore.add(Line.of("下に安い順に並んでいます", Tone.MUTED));
+        lore.add(Line.of("下に安い順に並んでいます（開き直すと並べ直します）", Tone.MUTED));
         return lore;
     }
 

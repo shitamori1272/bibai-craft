@@ -53,6 +53,10 @@ public final class ShopListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != top) {
             return;
         }
+        if (menu.isRecentlyChanged(event.getRawSlot())) {
+            // 中身が変わった直後のクリックは、見ていたものと違うものを買いかねないので無視する
+            return;
+        }
         if (menu.turnPage(event.getRawSlot())) {
             player.playSound(player, Sound.ITEM_BOOK_PAGE_TURN, 1f, 1f);
             menu.render(dataStore.get(player));

@@ -96,7 +96,7 @@ class ShopTextTest {
     @Test
     void 改良の見出し() {
         assertEquals("まだ買える改良はありません", plain(ShopText.upgradeHeaderLore(0, 0)).getFirst());
-        assertEquals(List.of("買える改良：3 個", "下に安い順に並んでいます"), plain(ShopText.upgradeHeaderLore(3, 0)));
+        assertEquals(List.of("買える改良：3 個", "下に安い順に並んでいます（開き直すと並べ直します）"), plain(ShopText.upgradeHeaderLore(3, 0)));
         assertEquals("ページ：2 / 2", plain(ShopText.upgradeHeaderLore(20, 1)).get(1));
     }
 

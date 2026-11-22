@@ -37,8 +37,14 @@ public final class ShopMenu implements InventoryHolder {
     private final Inventory inventory;
     /** 改良のページ（0 始まり）。 */
     private int page;
+    /** 開いている間は動かさない改良の並び。 */
+    private final UpgradeOrder order = new UpgradeOrder();
+    /** 次に描くときに並びを作り直すか（開いたとき・ページを変えたとき）。 */
+    private boolean resetOrder = true;
     /** 最後に描いたときの、改良のマスの中身（ページの中の順）。 */
-    private final List<Upgrade> shownUpgrades = new ArrayList<>();
+    private final List<UpgradeOrder.Cell> shownUpgrades = new ArrayList<>();
+    /** 中身が変わったばかりのマスのクリックを止める。 */
+    private final SlotGuard guard = new SlotGuard(ShopLayout.SIZE);
     private boolean hasPreviousPage;
     private boolean hasNextPage;
 
@@ -58,20 +64,31 @@ public final class ShopMenu implements InventoryHolder {
         return index >= 0 && index < tools.length ? Optional.of(tools[index]) : Optional.empty();
     }
 
-    /** そのマスにある改良。改良のマスでなければ空。 */
+    /** そのマスにある、買える改良。改良のマスでない・購入済みなら空。 */
     public Optional<Upgrade> upgradeAt(int slot) {
         int index = ShopLayout.upgradeIndexAt(slot);
-        return index >= 0 && index < shownUpgrades.size() ? Optional.of(shownUpgrades.get(index)) : Optional.empty();
+        if (index < 0 || index >= shownUpgrades.size()) {
+            return Optional.empty();
+        }
+        UpgradeOrder.Cell cell = shownUpgrades.get(index);
+        return cell.status() == UpgradeOrder.Status.AVAILABLE ? Optional.of(cell.upgrade()) : Optional.empty();
+    }
+
+    /** そのマスの中身が別のものに変わったばかりで、クリックを受け付けないか。 */
+    public boolean isRecentlyChanged(int slot) {
+        return guard.isGuarded(slot, System.currentTimeMillis());
     }
 
     /** 前・次のページのボタンなら、ページを動かして true。 */
     public boolean turnPage(int slot) {
         if (slot == ShopLayout.PREVIOUS_PAGE_SLOT && hasPreviousPage) {
             page--;
+            resetOrder = true;
             return true;
         }
         if (slot == ShopLayout.NEXT_PAGE_SLOT && hasNextPage) {
             page++;
+            resetOrder = true;
             return true;
         }
         return false;
@@ -100,22 +117,49 @@ public final class ShopMenu implements InventoryHolder {
             items[ShopLayout.toolSlot(i)] = toolIcon(tools[i], data, coal);
         }
 
-        List<Upgrade> available = ShopText.availableByPrice(data);
-        page = ShopLayout.clampPage(page, available.size());
-        hasPreviousPage = ShopLayout.hasPreviousPage(page, available.size());
-        hasNextPage = ShopLayout.hasNextPage(page, available.size());
-        items[ShopLayout.UPGRADE_HEADER_SLOT] = icon(Material.ENCHANTED_BOOK, text("改良", NamedTextColor.LIGHT_PURPLE),
-                components(ShopText.upgradeHeaderLore(available.size(), page)));
-        shownUpgrades.clear();
-        shownUpgrades.addAll(ShopLayout.pageOf(available, page));
-        for (int i = 0; i < shownUpgrades.size(); i++) {
-            items[ShopLayout.upgradeSlot(i)] = upgradeIcon(shownUpgrades.get(i), coal);
-        }
-        for (int i = shownUpgrades.size(); i < ShopLayout.UPGRADES_PER_PAGE; i++) {
-            items[ShopLayout.upgradeSlot(i)] = null;
+        String[] keys = new String[ShopLayout.SIZE];
+        for (int i = 0; i < ShopLayout.toolSlotCount() && i < tools.length; i++) {
+            keys[ShopLayout.toolSlot(i)] = "tool:" + tools[i].id();
         }
 
-        int pages = ShopLayout.pageCount(available.size());
+        List<Upgrade> available = ShopText.availableByPrice(data);
+        if (resetOrder) {
+            order.reset(available);
+            resetOrder = false;
+        } else {
+            // 開いている間は並びを動かさず、新しく出た改良だけ最後に足す
+            order.update(available);
+        }
+        int slotsUsed = order.size();
+        page = ShopLayout.clampPage(page, slotsUsed);
+        hasPreviousPage = ShopLayout.hasPreviousPage(page, slotsUsed);
+        hasNextPage = ShopLayout.hasNextPage(page, slotsUsed);
+        items[ShopLayout.UPGRADE_HEADER_SLOT] = icon(Material.ENCHANTED_BOOK, text("改良", NamedTextColor.LIGHT_PURPLE),
+                components(ShopText.upgradeHeaderLore(available.size(), page, slotsUsed)));
+        shownUpgrades.clear();
+        shownUpgrades.addAll(order.page(page, data));
+        for (int i = 0; i < ShopLayout.UPGRADES_PER_PAGE; i++) {
+            int slot = ShopLayout.upgradeSlot(i);
+            if (i >= shownUpgrades.size()) {
+                items[slot] = null;
+                continue;
+            }
+            UpgradeOrder.Cell cell = shownUpgrades.get(i);
+            switch (cell.status()) {
+                case AVAILABLE -> {
+                    items[slot] = upgradeIcon(cell.upgrade(), coal);
+                    keys[slot] = "upgrade:" + cell.upgrade().id();
+                }
+                case PURCHASED -> {
+                    items[slot] = icon(Material.LIME_STAINED_GLASS_PANE, text("購入済み", NamedTextColor.GREEN),
+                            List.of(text(cell.upgrade().displayName(), NamedTextColor.GRAY)));
+                    keys[slot] = "sold:" + cell.upgrade().id();
+                }
+                case GONE -> items[slot] = null;
+            }
+        }
+
+        int pages = ShopLayout.pageCount(slotsUsed);
         if (hasPreviousPage) {
             items[ShopLayout.PREVIOUS_PAGE_SLOT] = icon(Material.ARROW, text("前のページ", NamedTextColor.YELLOW),
                     List.of(text((page + 1) + " / " + pages, NamedTextColor.GRAY)));
@@ -127,8 +171,16 @@ public final class ShopMenu implements InventoryHolder {
         ShopText.nextLockedHint(data).ifPresent(hint -> items[ShopLayout.LOCKED_HINT_SLOT] = icon(Material.GRAY_DYE,
                 text("次の改良", NamedTextColor.DARK_GRAY), List.of(text(hint, NamedTextColor.GRAY))));
 
+        if (hasPreviousPage) {
+            keys[ShopLayout.PREVIOUS_PAGE_SLOT] = "previous";
+        }
+        if (hasNextPage) {
+            keys[ShopLayout.NEXT_PAGE_SLOT] = "next";
+        }
+        long now = System.currentTimeMillis();
         // 中身が変わったマスだけ置き直す（毎秒の描き直しでちらつかないように）
         for (int i = 0; i < items.length; i++) {
+            guard.record(i, keys[i], now);
             if (!Objects.equals(normalize(inventory.getItem(i)), items[i])) {
                 inventory.setItem(i, items[i]);
             }
