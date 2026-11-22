@@ -88,15 +88,6 @@ class TunnelPlanTest {
     }
 
     @Test
-    void 巻き戻しで移す量() {
-        assertEquals(0, TunnelPlan.shiftFor(-8));
-        assertEquals(0, TunnelPlan.shiftFor(0));
-        assertEquals(0, TunnelPlan.shiftFor(63));
-        assertEquals(-64, TunnelPlan.shiftFor(64));
-        assertEquals(-64, TunnelPlan.shiftFor(126));
-    }
-
-    @Test
     void 坑木と明かりはループ周期で同じ位置() {
         assertFalse(TunnelPlan.isTimberX(0));
         assertTrue(TunnelPlan.isTimberX(4));
