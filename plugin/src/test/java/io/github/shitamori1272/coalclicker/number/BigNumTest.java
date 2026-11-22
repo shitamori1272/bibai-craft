@@ -60,6 +60,37 @@ class BigNumTest {
     }
 
     @Test
+    void 大きな指数の累乗でも隣の階層と区別できる() {
+        BigNum a = BigNum.pow(1.1, Long.MAX_VALUE - 1);
+        BigNum b = BigNum.pow(1.1, Long.MAX_VALUE);
+        assertTrue(b.compareTo(a) > 0);
+        assertThrows(IllegalArgumentException.class, () -> BigNum.pow(1.1, -1));
+    }
+
+    @Test
+    void 極端に小さい値も正規化できる() {
+        BigNum tiny = BigNum.of(Double.MIN_VALUE);
+        assertTrue(Math.abs(tiny.mantissa()) >= 1 && Math.abs(tiny.mantissa()) < 10);
+        assertEquals(tiny, BigNum.parse(tiny.toString()));
+        BigNum big = BigNum.of(Double.MAX_VALUE);
+        assertEquals(308, big.exponent());
+    }
+
+    @Test
+    void 打ち消しの誤差は0になる() {
+        assertTrue(BigNum.of(0.3).subtract(BigNum.of(0.1)).subtract(BigNum.of(0.2)).isZero());
+        assertTrue(BigNum.of(-0.3).add(BigNum.of(0.1)).add(BigNum.of(0.2)).isZero());
+        // 意味のある小さな差は 0 にしない
+        assertNum(1, -5, BigNum.of(1.00001).subtract(BigNum.ONE));
+    }
+
+    @Test
+    void 指数が極端に離れた足し算() {
+        BigNum big = BigNum.of(1, Long.MAX_VALUE);
+        assertEquals(big, big.add(BigNum.of(1, Long.MIN_VALUE)));
+    }
+
+    @Test
     void 比較() {
         assertTrue(BigNum.of(1, 1000).compareTo(BigNum.of(9, 999)) > 0);
         assertTrue(BigNum.of(2).compareTo(BigNum.of(3)) < 0);

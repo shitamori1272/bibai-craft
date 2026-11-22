@@ -16,6 +16,9 @@ public final class BigNum implements Comparable<BigNum> {
     /** 指数の差がこれ以上あると、小さい方は加減算の結果に影響しない。 */
     private static final long PRECISION_DIGITS = 17;
 
+    /** 打ち消し合う加減算で、この割合より小さく残った誤差は 0 とみなす。 */
+    private static final double CANCEL_TOLERANCE = 1e-12;
+
     private final double mantissa;
     private final long exponent;
 
@@ -32,9 +35,19 @@ public final class BigNum implements Comparable<BigNum> {
         if (mantissa == 0) {
             return ZERO;
         }
-        long shift = (long) Math.floor(Math.log10(Math.abs(mantissa)));
-        double m = mantissa / Math.pow(10, shift);
-        long e = Math.addExact(exponent, shift);
+        double m = mantissa;
+        long e = exponent;
+        // 10^shift が 0 や無限大にならないよう、極端な値は先に桁をずらしておく
+        if (Math.abs(m) < 1e-300) {
+            m *= 1e300;
+            e = Math.subtractExact(e, 300);
+        } else if (Math.abs(m) > 1e300) {
+            m /= 1e300;
+            e = Math.addExact(e, 300);
+        }
+        long shift = (long) Math.floor(Math.log10(Math.abs(m)));
+        m /= Math.pow(10, shift);
+        e = Math.addExact(e, shift);
         // 丸め誤差で 10 ちょうどや 1 未満になった場合を補正する
         if (Math.abs(m) >= 10) {
             m /= 10;
@@ -43,6 +56,9 @@ public final class BigNum implements Comparable<BigNum> {
             m *= 10;
             e = Math.subtractExact(e, 1);
         }
+        if (!(Math.abs(m) >= 1 && Math.abs(m) < 10)) {
+            throw new ArithmeticException("正規化できません: " + mantissa + "e" + exponent);
+        }
         return new BigNum(m, e);
     }
 
@@ -50,12 +66,30 @@ public final class BigNum implements Comparable<BigNum> {
         return of(value, 0);
     }
 
-    /** {@code base^power} を求める。掛け算を power 回繰り返さず、対数から直接計算する。 */
+    /**
+     * {@code base^power}（power は 0 以上）を求める。繰り返し二乗法なので、power がどれだけ大きくても
+     * 掛け算は 120 回程度で済み、隣り合う power が同じ値になることもない。
+     */
     public static BigNum pow(double base, long power) {
         if (base <= 0) {
             throw new IllegalArgumentException("底は正の数にしてください: " + base);
         }
-        return fromLog10(power * Math.log10(base));
+        if (power < 0) {
+            throw new IllegalArgumentException("指数は 0 以上にしてください: " + power);
+        }
+        BigNum result = ONE;
+        BigNum square = of(base);
+        long p = power;
+        while (p > 0) {
+            if ((p & 1) == 1) {
+                result = result.multiply(square);
+            }
+            p >>= 1;
+            if (p > 0) {
+                square = square.multiply(square);
+            }
+        }
+        return result;
     }
 
     /** 常用対数 {@code log10(x)} から x を作る。 */
@@ -112,11 +146,22 @@ public final class BigNum implements Comparable<BigNum> {
         }
         BigNum big = exponent >= other.exponent ? this : other;
         BigNum small = big == this ? other : this;
-        long diff = big.exponent - small.exponent;
+        long diff;
+        try {
+            diff = Math.subtractExact(big.exponent, small.exponent);
+        } catch (ArithmeticException overflow) {
+            return big; // 指数の差が long に収まらないほど離れている
+        }
         if (diff >= PRECISION_DIGITS) {
             return big;
         }
-        return of(big.mantissa + small.mantissa / Math.pow(10, diff), big.exponent);
+        double aligned = small.mantissa / Math.pow(10, diff);
+        double sum = big.mantissa + aligned;
+        // 0.3 - 0.1 - 0.2 のような打ち消しで残る、浮動小数点の誤差だけの値は 0 にする
+        if (Math.abs(sum) <= CANCEL_TOLERANCE * Math.abs(big.mantissa)) {
+            return ZERO;
+        }
+        return of(sum, big.exponent);
     }
 
     public BigNum subtract(BigNum other) {

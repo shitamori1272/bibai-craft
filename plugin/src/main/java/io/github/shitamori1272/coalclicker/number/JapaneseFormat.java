@@ -15,7 +15,8 @@ import java.util.Locale;
  *   <li>無量大数の上限（10^72）以上：{@code 1.23×10^1234}
  * </ul>
  *
- * <p>表示はすべて切り捨てる。四捨五入すると、まだ足りない額でも価格に届いているように見えてしまうため。
+ * <p>表示はすべて切り捨てる（負の数は絶対値を切り捨てる）。四捨五入すると、まだ足りない額でも
+ * 価格に届いているように見えてしまうため。
  */
 public final class JapaneseFormat {
 
@@ -40,18 +41,18 @@ public final class JapaneseFormat {
         if (value.exponent() < 4) {
             return formatSmall(value.toDouble());
         }
-        BigNum rounded = floorToSignificant(value, SIGNIFICANT_DIGITS);
-        long exponent = rounded.exponent();
+        // 切り捨てなので、表示のために指数が繰り上がることはない
+        long exponent = value.exponent();
         if (exponent < 4L * UNITS.length) {
             int unit = (int) (exponent / 4);
             int integerDigits = (int) (exponent % 4) + 1;
-            BigDecimal shown = BigDecimal.valueOf(rounded.mantissa())
+            BigDecimal shown = BigDecimal.valueOf(value.mantissa())
                     .movePointRight(integerDigits - 1)
                     .setScale(SIGNIFICANT_DIGITS - integerDigits, RoundingMode.DOWN)
                     .stripTrailingZeros();
             return shown.toPlainString() + UNITS[unit];
         }
-        BigDecimal mantissa = BigDecimal.valueOf(rounded.mantissa())
+        BigDecimal mantissa = BigDecimal.valueOf(value.mantissa())
                 .setScale(2, RoundingMode.DOWN)
                 .stripTrailingZeros();
         return mantissa.toPlainString() + "×10^" + exponent;
@@ -63,12 +64,5 @@ public final class JapaneseFormat {
         DecimalFormat format = new DecimalFormat(pattern, symbols);
         format.setRoundingMode(RoundingMode.FLOOR);
         return format.format(value);
-    }
-
-    private static BigNum floorToSignificant(BigNum value, int digits) {
-        double scale = Math.pow(10, digits - 1);
-        // 1.2 が 1.19999… と表されていても 1.199 にならないよう、わずかに余裕を持たせる
-        double mantissa = Math.floor(value.mantissa() * scale + 1e-9) / scale;
-        return BigNum.of(mantissa, value.exponent());
     }
 }

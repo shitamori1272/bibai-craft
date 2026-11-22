@@ -43,6 +43,11 @@ class JapaneseFormatTest {
         assertEquals("9.999万", f(99_999));
         assertEquals("9,999", f(9999.6));
         assertEquals("1.2万", f(12_000));
+        // 境界のすぐ下
+        assertEquals("9999万", f(9.9999999999995, 7));
+        assertEquals("1.233万", f(1.2339999999995, 4));
+        assertEquals("9.999万", f(9.9999999999, 4));
+        assertEquals("9999無量大数", f(9.99999999999, 71));
     }
 
     @Test
