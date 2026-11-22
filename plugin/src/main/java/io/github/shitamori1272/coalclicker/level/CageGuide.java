@@ -40,7 +40,7 @@ import org.bukkit.scheduler.BukkitTask;
  * <p>自分の坑道にいて、数値上の階層が置いてある坑道より進んでいる人に、1 秒ごとに次を出す。
  * <ul>
  *   <li>ボスバー「第 ◯ 坑道まで掘り進んでいます。ケージで降りよう」
- *   <li>掘り切った切羽の看板（区画・置いてある階層ごとに 1 回。作り直しで消える）
+ *   <li>掘り切った切羽の看板（区画・置いてある階層・行き先が変わったら書き直す。作り直しで消える）
  *   <li>足元から坑底のケージの方へ並ぶパーティクル（本人にだけ見える）
  * </ul>
  *
@@ -75,10 +75,11 @@ public final class CageGuide implements Listener {
     private static final class Guide {
         final BossBar bar;
         long barLevel;
-        /** 看板を置いた区画と置いてある階層。まだなら sign = false。 */
+        /** 看板を置いた区画・置いてある階層・看板に書いた行き先の階層。まだなら sign = false。 */
         boolean sign;
         int signSection;
         long signLevel;
+        long signTarget;
 
         Guide(long level) {
             this.barLevel = level;
@@ -146,13 +147,16 @@ public final class CageGuide implements Listener {
             guide.barLevel = numeric;
             guide.bar.name(Component.text(LevelGuide.bossBarText(numeric), NamedTextColor.GOLD));
         }
-        // 置いてある坑道を掘り切っていれば、切羽に看板を出す（区画・階層が変わるまで 1 回だけ）
-        boolean sameSign = guide.sign && guide.signSection == section.get() && guide.signLevel == rendered.get();
+        // 置いてある坑道を掘り切っていれば、切羽に看板を出す（区画・階層・行き先が変わるまで 1 回だけ）
+        // 数値上の階層がさらに進んだら、看板の行き先も書き直す
+        boolean sameSign = guide.sign && guide.signSection == section.get() && guide.signLevel == rendered.get()
+                && guide.signTarget == numeric;
         if (!sameSign && meters.get() >= Formulas.tunnelLength(rendered.get())) {
             mineService.renderer().placeEndSign(section.get(), meters.get(), LevelGuide.endSignLines(numeric));
             guide.sign = true;
             guide.signSection = section.get();
             guide.signLevel = rendered.get();
+            guide.signTarget = numeric;
         }
         showTrail(player, section.get());
     }

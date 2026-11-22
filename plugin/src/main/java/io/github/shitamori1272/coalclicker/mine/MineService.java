@@ -124,6 +124,11 @@ public final class MineService implements Listener {
             player.sendMessage(Component.text("入坑の準備中です。少し待ってください。", NamedTextColor.GRAY));
             return;
         }
+        // 坑内での入坑し直しで最新の階層へ移れると、ケージ（#22）を通らずに到達ボーナスがもらえてしまうので断る
+        if (sessions.containsKey(id) && inMineWorld(player)) {
+            player.sendMessage(Component.text("すでに坑内にいます。下の坑道へはケージで降りてください。", NamedTextColor.GRAY));
+            return;
+        }
         MineState mine = dataStore.get(player).mine();
         if (!mine.hasSection()) {
             // 割り当てでサーバーのデータ、setSection でプレイヤーのデータがそれぞれ保存対象になる
@@ -150,17 +155,16 @@ public final class MineService implements Listener {
             return;
         }
         MineState mine = dataStore.get(player).mine();
-        Session session = sessions.get(id);
-        boolean fresh = session == null || !inMineWorld(player);
-        if (fresh) {
-            session = new Session(player.getLocation(), player.getGameMode());
-            sessions.put(id, session);
+        // 地上からの入坑だけを通す（準備の間に坑内へ入っていた場合も断る）
+        if (sessions.containsKey(id) && inMineWorld(player)) {
+            player.sendMessage(Component.text("すでに坑内にいます。下の坑道へはケージで降りてください。", NamedTextColor.GRAY));
+            return;
         }
+        Session session = new Session(player.getLocation(), player.getGameMode());
+        sessions.put(id, session);
         render(session, mine);
         if (!teleport(player, renderer.arrival(session.section))) {
-            if (fresh) {
-                sessions.remove(id);
-            }
+            sessions.remove(id);
             player.sendMessage(Component.text("入坑できませんでした。", NamedTextColor.RED));
             return;
         }
