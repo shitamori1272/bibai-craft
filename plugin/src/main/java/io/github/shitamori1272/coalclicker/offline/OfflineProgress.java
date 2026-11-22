@@ -4,15 +4,15 @@ import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.data.ServerData;
 import io.github.shitamori1272.coalclicker.dig.DigEngine;
 import io.github.shitamori1272.coalclicker.hud.HudText;
-import io.github.shitamori1272.coalclicker.number.BigNum;
 import io.github.shitamori1272.coalclicker.number.JapaneseFormat;
 import java.util.Optional;
 
 /**
- * ログアウト中の自動の掘進を、再ログイン時にまとめて反映する計算（#27）。Bukkit に依存しない。
+ * ログアウト中の毎秒の石炭を、再ログイン時にまとめて反映する計算（#27）。Bukkit に依存しない。
  *
- * <p>経過時間は {@code now − lastSeen}（上限 {@link #MAX_SECONDS} 秒）。階層をまたぐ分は
- * {@link DigEngine#autoTick} が階層ごとに長さと深さ倍率を変えて進める。
+ * <p>経過時間は {@code now − lastSeen}（上限 {@link #MAX_SECONDS} 秒）。毎秒の石炭 × 秒数を
+ * {@link DigEngine#autoTick} で足す。毎秒の石炭はログアウトしたときの階層の深さ倍率のまま
+ * （留守の間に階層が進んでも増やさない）。TODO(#61): 留守の分の扱いを見直す。
  *
  * <p>二重付与を防ぐため、{@link #grant} は付与の有無にかかわらず最後に {@code lastSeen = now} にする。
  * {@code lastSeen} はほかに DataStore がログアウト時・自動保存時・停止時に「今」へ進めるだけなので、
@@ -25,9 +25,6 @@ public final class OfflineProgress {
 
     /** これより短い留守は反映しない（秒）。すぐ入り直したときに通知を出さないため。 */
     public static final long MIN_SECONDS = 5;
-
-    /** m 数を切り捨てるときの丸め誤差の余裕。 */
-    private static final double METERS_EPSILON = 1e-6;
 
     private OfflineProgress() {
     }
@@ -71,16 +68,14 @@ public final class OfflineProgress {
     }
 
     /**
-     * 例: {@code 留守の間に 360m 掘り進み、3.6万個の石炭を掘りました。第5坑道まで進みました。}
-     * 進まなかった（掘進力 0 など）ときは空。
+     * 例: {@code 留守の間に 3.6万個の石炭を掘りました。第5坑道まで進みました。}
+     * 何も採れなかった（道具がないなど）ときは空。
      */
     public static Optional<String> message(DigEngine.Change change, boolean capped) {
         if (!change.moved() && change.coal().isZero()) {
             return Optional.empty();
         }
         StringBuilder text = new StringBuilder("留守の間に ")
-                .append(JapaneseFormat.format(BigNum.of(Math.floor(change.meters() + METERS_EPSILON))))
-                .append("m 掘り進み、")
                 .append(JapaneseFormat.format(change.coal()))
                 .append("個の石炭を掘りました。");
         if (change.levelsCompleted() > 0) {

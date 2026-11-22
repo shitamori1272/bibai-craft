@@ -50,12 +50,11 @@ class AdminActionsTest {
         PlayerData d = new PlayerData(UUID.randomUUID());
         d.setCoal(BigNum.of(1, 50));
         d.setTotalMined(BigNum.of(1, 60));
-        d.setToolCount("pickaxe", 3);
+        d.setClicks(320);
         d.setToolCount("lamp", 10);
-        d.markExplained("pickaxe");
+        d.addUpgrade("lamp_1");
+        d.markExplained("lamp");
         d.mine().setSection(7);
-        d.mine().setLevel(12);
-        d.mine().setProgress(0.4);
         d.mine().setMaxReachedLevel(12);
 
         AdminActions.reset(d);
@@ -65,8 +64,8 @@ class AdminActionsTest {
         assertTrue(d.tools().isEmpty());
         assertTrue(d.explained().isEmpty());
         assertEquals(7, d.mine().section());
-        assertEquals(0, d.mine().level());
-        assertEquals(0, d.mine().progress());
+        assertEquals(0, d.clicks());
+        assertTrue(d.upgrades().isEmpty());
         assertEquals(0, d.mine().maxReachedLevel());
         assertTrue(d.isDirty());
     }

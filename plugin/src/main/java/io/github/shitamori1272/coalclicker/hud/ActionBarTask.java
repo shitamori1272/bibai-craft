@@ -2,6 +2,7 @@ package io.github.shitamori1272.coalclicker.hud;
 
 import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
+import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.level.LevelGuide;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import net.kyori.adventure.text.Component;
@@ -38,7 +39,7 @@ public final class ActionBarTask implements Runnable {
         for (Player player : Bukkit.getOnlinePlayers()) {
             PlayerData data = dataStore.get(player);
             boolean awaiting = mineService.renderedLevel(player)
-                    .map(rendered -> LevelGuide.awaitingCage(data.mine().level(), rendered))
+                    .map(rendered -> LevelGuide.awaitingCage(Formulas.levelOf(data.totalMined()), rendered))
                     .orElse(false);
             player.sendActionBar(Component.text(HudText.actionBar(data, awaiting), NamedTextColor.GOLD));
         }

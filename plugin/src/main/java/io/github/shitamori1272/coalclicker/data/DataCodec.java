@@ -1,5 +1,7 @@
 package io.github.shitamori1272.coalclicker.data;
 
+import io.github.shitamori1272.coalclicker.game.Tool;
+import io.github.shitamori1272.coalclicker.game.Upgrade;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -15,6 +17,10 @@ import java.util.UUID;
  * <p>形は企画書 8 章のとおり。BigNum は {@link BigNum#toString()} の文字列で持つ。
  * 読み込みでは、ない項目は初期値にする。数値は数値・文字列のどちらでも読めるが、
  * 読めない値・範囲外の値・整数でない値は丸めずに {@link IllegalArgumentException} を投げる（壊れたファイルとして扱う）。
+ *
+ * <p>古い形式（ルール改定 #57・#58 より前）のファイルも読める。{@code mine.level}・{@code mine.progress} は
+ * 累計採掘量から計算するようになったので読み飛ばし、今はない道具（{@code pickaxe}・{@code drill} など）や
+ * 知らない改良の ID は捨てる。書き出すときは新しい形にする。
  */
 public final class DataCodec {
 
@@ -26,13 +32,13 @@ public final class DataCodec {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("coal", data.coal().toString());
         root.put("totalMined", data.totalMined().toString());
+        root.put("clicks", data.clicks());
         root.put("tools", new LinkedHashMap<>(data.tools()));
+        root.put("upgrades", new ArrayList<>(data.upgrades()));
         root.put("explained", new ArrayList<>(data.explained()));
         MineState mine = data.mine();
         Map<String, Object> mineMap = new LinkedHashMap<>();
         mineMap.put("section", mine.section());
-        mineMap.put("level", mine.level());
-        mineMap.put("progress", mine.progress());
         mineMap.put("maxReachedLevel", mine.maxReachedLevel());
         root.put("mine", mineMap);
         root.put("lastSeen", data.lastSeen());
@@ -48,6 +54,7 @@ public final class DataCodec {
         PlayerData data = new PlayerData(uuid);
         data.setCoal(bigNum(root, "coal"));
         data.setTotalMined(bigNum(root, "totalMined"));
+        data.setClicks(nonNegativeLong(root, "clicks", "clicks"));
         Map<?, ?> tools = map(root, "tools");
         if (tools != null) {
             tools.forEach((id, count) -> {
@@ -55,14 +62,20 @@ public final class DataCodec {
                 if (n < 0) {
                     throw new IllegalArgumentException("tools." + id + " が負の数です: " + n);
                 }
-                data.setToolCount(String.valueOf(id), n);
+                // 今はない道具（古い形式の pickaxe・drill など）は捨てる
+                if (Tool.byId(String.valueOf(id)).isPresent()) {
+                    data.setToolCount(String.valueOf(id), n);
+                }
             });
         }
-        Object explained = root.get("explained");
-        if (explained instanceof List<?> list) {
-            list.forEach(id -> data.markExplained(String.valueOf(id)));
-        } else if (explained != null) {
-            throw new IllegalArgumentException("explained がリストではありません: " + explained);
+        for (Object id : list(root, "upgrades")) {
+            // 知らない改良は捨てる
+            if (Upgrade.byId(String.valueOf(id)).isPresent()) {
+                data.addUpgrade(String.valueOf(id));
+            }
+        }
+        for (Object id : list(root, "explained")) {
+            data.markExplained(String.valueOf(id));
         }
         Map<?, ?> mineMap = map(root, "mine");
         if (mineMap != null) {
@@ -75,15 +88,7 @@ public final class DataCodec {
                 }
                 mine.setSection(s);
             }
-            mine.setLevel(nonNegativeLong(mineMap, "level", "mine.level"));
-            Object progress = mineMap.get("progress");
-            if (progress != null) {
-                double p = finiteDouble(progress, "mine.progress");
-                if (p < 0 || p > 1) {
-                    throw new IllegalArgumentException("mine.progress が 0〜1 の範囲外です: " + p);
-                }
-                mine.setProgress(p);
-            }
+            // 古い形式の mine.level・mine.progress は累計採掘量から計算するようになったので読み飛ばす
             mine.setMaxReachedLevel(nonNegativeLong(mineMap, "maxReachedLevel", "mine.maxReachedLevel"));
         }
         Object lastSeen = root.get("lastSeen");
@@ -124,6 +129,17 @@ public final class DataCodec {
             return (Map<?, ?>) value;
         }
         throw new IllegalArgumentException(key + " がマップではありません: " + value);
+    }
+
+    private static List<?> list(Map<String, ?> root, String key) {
+        Object value = root.get(key);
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof List<?> list) {
+            return list;
+        }
+        throw new IllegalArgumentException(key + " がリストではありません: " + value);
     }
 
     private static BigNum bigNum(Map<String, ?> root, String key) {

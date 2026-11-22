@@ -80,9 +80,9 @@ class RankingTest {
     void 到達深さは最深と今の階層の深いほう() {
         PlayerData a = new PlayerData(id(1));
         a.mine().setMaxReachedLevel(5);
-        a.mine().setLevel(2);
+        a.setTotalMined(BigNum.of(3_000)); // 階層 2
         PlayerData b = new PlayerData(id(2));
-        b.mine().setLevel(7);
+        b.setTotalMined(BigNum.of(127_000)); // 階層 7
         PlayerStats sa = PlayerStats.from(a, "a");
         PlayerStats sb = PlayerStats.from(b, "b");
         assertEquals(5, sa.deepestLevel());

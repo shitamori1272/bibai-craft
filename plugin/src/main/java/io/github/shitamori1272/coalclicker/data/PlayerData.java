@@ -1,5 +1,6 @@
 package io.github.shitamori1272.coalclicker.data;
 
+import io.github.shitamori1272.coalclicker.game.GameState;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -10,33 +11,38 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * プレイヤー 1 人分の保存データ。道具はゲームのルールに依存しないよう、文字列の ID（例: {@code "pickaxe"}）で持つ。
+ * プレイヤー 1 人分の保存データ（企画書 8 章）。道具・改良は文字列の ID（例: {@code "lamp"}・{@code "lamp_1"}）で持つ。
+ * 計算式からは {@link GameState} として読む。数値上の階層と進み具合は累計採掘量から計算するので持たない。
  *
  * <p>値を変えると {@link #isDirty()} が true になり、次の自動保存で書き出される。
  * サーバーのメインスレッドからだけ触ること。
  */
-public final class PlayerData {
+public final class PlayerData implements GameState {
 
     private final UUID uuid;
     private BigNum coal = BigNum.ZERO;
     private BigNum totalMined = BigNum.ZERO;
+    private long clicks;
     private final Map<String, Long> tools = new LinkedHashMap<>();
+    private final Set<String> upgrades = new LinkedHashSet<>();
     private final Set<String> explained = new LinkedHashSet<>();
     private final MineState mine = new MineState(this::markDirty);
     private long lastSeen;
     private boolean dirty;
 
-    /** 初期値（石炭 0・道具なし・区画未割り当て）のデータを作る。 */
+    /** 初期値（石炭 0・道具と改良なし・区画未割り当て）のデータを作る。 */
     public PlayerData(UUID uuid) {
         this.uuid = Objects.requireNonNull(uuid);
     }
 
-    /** 道具・解説済み・坑道まで含めた独立した写しを作る。写しは保存不要（dirty でない）状態。 */
+    /** 道具・改良・解説済み・坑道まで含めた独立した写しを作る。写しは保存不要（dirty でない）状態。 */
     public PlayerData copy() {
         PlayerData copy = new PlayerData(uuid);
         copy.coal = coal;
         copy.totalMined = totalMined;
+        copy.clicks = clicks;
         copy.tools.putAll(tools);
+        copy.upgrades.addAll(upgrades);
         copy.explained.addAll(explained);
         copy.mine.copyFrom(mine);
         copy.lastSeen = lastSeen;
@@ -59,6 +65,7 @@ public final class PlayerData {
     }
 
     /** 累計採掘量。 */
+    @Override
     public BigNum totalMined() {
         return totalMined;
     }
@@ -66,6 +73,27 @@ public final class PlayerData {
     public void setTotalMined(BigNum totalMined) {
         this.totalMined = Objects.requireNonNull(totalMined);
         markDirty();
+    }
+
+    /** 手掘りの回数（ツルハシの改良の出現条件）。 */
+    @Override
+    public long clicks() {
+        return clicks;
+    }
+
+    public void setClicks(long clicks) {
+        if (clicks < 0) {
+            throw new IllegalArgumentException("手掘りの回数は 0 以上にしてください: " + clicks);
+        }
+        this.clicks = clicks;
+        markDirty();
+    }
+
+    /** 手掘りの回数を 1 増やす（long の上限で止める）。 */
+    public void incrementClicks() {
+        if (clicks < Long.MAX_VALUE) {
+            setClicks(clicks + 1);
+        }
     }
 
     /** 道具の所持数。持っていなければ 0。 */
@@ -90,18 +118,47 @@ public final class PlayerData {
     }
 
     /** 道具の所持数の一覧（読み取り専用）。 */
+    @Override
     public Map<String, Long> tools() {
         return Collections.unmodifiableMap(tools);
     }
 
-    /** 解説を表示済みか。 */
-    public boolean isExplained(String toolId) {
-        return explained.contains(toolId);
+    /** 改良を買ってあるか。 */
+    public boolean hasUpgrade(String id) {
+        return upgrades.contains(id);
     }
 
-    /** 解説を表示済みにする。はじめて記録したときだけ true を返す。 */
-    public boolean markExplained(String toolId) {
-        boolean added = explained.add(Objects.requireNonNull(toolId));
+    /** 改良を買ったことにする。はじめて記録したときだけ true を返す。 */
+    public boolean addUpgrade(String id) {
+        boolean added = upgrades.add(Objects.requireNonNull(id));
+        if (added) {
+            markDirty();
+        }
+        return added;
+    }
+
+    /** 買った改良をすべて消す（管理コマンドの初期化用）。 */
+    public void clearUpgrades() {
+        if (!upgrades.isEmpty()) {
+            upgrades.clear();
+            markDirty();
+        }
+    }
+
+    /** 買った改良の ID の一覧（読み取り専用。買った順）。 */
+    @Override
+    public Set<String> upgrades() {
+        return Collections.unmodifiableSet(upgrades);
+    }
+
+    /** 解説を表示済みか（道具か改良の ID）。 */
+    public boolean isExplained(String id) {
+        return explained.contains(id);
+    }
+
+    /** 解説を表示済みにする（道具か改良の ID）。はじめて記録したときだけ true を返す。 */
+    public boolean markExplained(String id) {
+        boolean added = explained.add(Objects.requireNonNull(id));
         if (added) {
             markDirty();
         }
@@ -116,12 +173,12 @@ public final class PlayerData {
         }
     }
 
-    /** 解説を表示済みの道具 ID の一覧（読み取り専用）。 */
+    /** 解説を表示済みの道具・改良の ID の一覧（読み取り専用）。 */
     public Set<String> explained() {
         return Collections.unmodifiableSet(explained);
     }
 
-    /** 坑道の進み具合。 */
+    /** 坑道（区画・到達ボーナスを受け取った階層）。 */
     public MineState mine() {
         return mine;
     }

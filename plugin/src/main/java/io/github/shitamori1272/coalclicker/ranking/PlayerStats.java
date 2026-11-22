@@ -1,7 +1,7 @@
 package io.github.shitamori1272.coalclicker.ranking;
 
 import io.github.shitamori1272.coalclicker.data.PlayerData;
-import io.github.shitamori1272.coalclicker.hud.HudText;
+import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.Objects;
 import java.util.UUID;
@@ -22,9 +22,9 @@ public record PlayerStats(UUID uuid, String name, BigNum totalMined, long deepes
 
     /** 保存データから作る。到達深さは「到達ボーナス済みの最深」と「今いる階層」の深いほう。 */
     public static PlayerStats from(PlayerData data, String name) {
-        long level = data.mine().level();
+        long level = Formulas.levelOf(data.totalMined());
         return new PlayerStats(data.uuid(), name, data.totalMined(),
-                Math.max(data.mine().maxReachedLevel(), level), HudText.coalPerSecond(data.tools(), level));
+                Math.max(data.mine().maxReachedLevel(), level), Formulas.coalPerSecond(data));
     }
 
     /** 表示名。名前が分からなければ UUID の先頭 8 文字。 */

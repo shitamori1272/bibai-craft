@@ -4,96 +4,74 @@ import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.Optional;
 
 /**
- * ショップで買える道具（企画書 6 章。MVP は 6 種類）。
+ * ショップで買える道具（企画書 6-1。クッキークリッカーの建物）。何個でも買え、1 つごとに毎秒の石炭が増える。
  *
- * <p>アイコンは Bukkit に依存しないよう、Material の名前を文字列で持つ。
+ * <p>アイコンは Bukkit に依存しないよう、Material の名前を文字列で持つ。並び順はショップの表示順（安い順）。
  */
 public enum Tool {
-    PICKAXE("pickaxe", "ツルハシ", ToolKind.MANUAL, 500, 2.0, 100, "WOODEN_PICKAXE",
-            "1m 崩したときの石炭 +100 個",
-            "手掘りの基本の道具",
-            "炭鉱の始まりは手掘りでした。炭壁の下に切り込みを入れ、楔で石炭を割り落とします。"),
-    LAMP("lamp", "安全灯", ToolKind.COAL, 150, 1.15, 10, "LANTERN",
-            "採炭力 +10",
+    LAMP("lamp", "安全灯", 150, 1, "LANTERN",
             "坑内を照らす、火が外に出ない灯り",
             "暗い坑内で欠かせない明かり。炭鉱には燃えやすいガスがたまることがあり、火が外に出ない仕組みの灯りが使われました。"),
-    MINECART("minecart", "炭車", ToolKind.COAL, 1_000, 1.15, 100, "MINECART",
-            "採炭力 +100",
+    MINECART("minecart", "炭車", 1_000, 10, "MINECART",
             "掘った石炭をレールで運ぶ車",
             "掘った石炭を積んでレールの上を運ぶ車。坑道には何両もの炭車がつながって走りました。"),
-    COAL_PICK("coal_pick", "コールピック", ToolKind.COAL, 12_000, 1.15, 1_000, "IRON_PICKAXE",
-            "採炭力 +1,000",
-            "圧縮空気で打ち付ける採炭機",
-            "圧縮空気の力で先端を何度も打ち付ける採炭機。坑夫 1 人あたりの採炭量を大きく増やしました。"),
-    BLASTING("blasting", "発破", ToolKind.DIG, 200, 1.15, 1, "TNT",
-            "掘進力 +1",
+    BLASTING("blasting", "発破", 11_000, 80, "TNT",
             "火薬で岩盤をまとめて砕く",
             "岩盤に穴をあけて火薬を詰め、一度にまとめて砕く方法。硬い岩の中に坑道を掘り進めるのに欠かせませんでした。"),
-    DRILL("drill", "削岩機", ToolKind.DIG, 5_000, 1.15, 10, "PISTON",
-            "掘進力 +10",
-            "圧縮空気で発破用の穴をあける機械",
-            "圧縮空気の力で岩に発破用の穴をあける機械。手作業より何倍も速く穴をあけられ、坑道を掘る速さが大きく上がりました。");
+    COAL_PICK("coal_pick", "コールピック", 120_000, 470, "IRON_PICKAXE",
+            "圧縮空気で打ち付ける採炭機",
+            "圧縮空気の力で先端を何度も打ち付ける採炭機。坑夫 1 人あたりの採炭量を大きく増やしました。"),
+    CONVEYOR("conveyor", "ベルトコンベア", 1_300_000, 2_600, "POWERED_RAIL",
+            "切羽から休みなく石炭を運び出す",
+            "掘った石炭を切羽から休みなく運び出す設備。運び出しの待ち時間が減り、掘る時間が増えました。"),
+    DRUM_CUTTER("drum_cutter", "ドラムカッター", 14_000_000, 14_000, "GRINDSTONE",
+            "回転するドラムで炭壁を削る採炭機",
+            "長い切羽に沿って走りながら、回転するドラムで炭壁を削り、そのままコンベアに積み込む採炭機。"),
+    SHIELD("shield", "自走枠", 200_000_000, 78_000, "IRON_BARS",
+            "天井を支えながら自分で進む鋼鉄の枠",
+            "油圧で天井を支えながら、自分で前へ進む鋼鉄の枠。長い切羽でも安全に掘れるようになりました。"),
+    HEADFRAME("headframe", "立坑櫓", 3_300_000_000.0, 440_000, "LIGHTNING_ROD",
+            "ケージで人や石炭を上げ下げする櫓",
+            "地下深くまで続く立坑の上に建つ櫓。巻揚機の滑車でケージを上げ下げし、人や石炭を運びました。"
+                    + "美唄には今も赤い立坑櫓が残っています。");
 
     private final String id;
     private final String displayName;
-    private final ToolKind kind;
     private final BigNum basePrice;
-    private final double priceGrowth;
-    private final double effect;
+    private final BigNum baseCoalPerSecond;
     private final String iconMaterial;
-    private final String effectDescription;
     private final String shortDescription;
     private final String explanation;
 
-    Tool(String id, String displayName, ToolKind kind, double basePrice, double priceGrowth, double effect,
-            String iconMaterial, String effectDescription, String shortDescription, String explanation) {
+    Tool(String id, String displayName, double basePrice, double baseCoalPerSecond, String iconMaterial,
+            String shortDescription, String explanation) {
         this.id = id;
         this.displayName = displayName;
-        this.kind = kind;
         this.basePrice = BigNum.of(basePrice);
-        this.priceGrowth = priceGrowth;
-        this.effect = effect;
+        this.baseCoalPerSecond = BigNum.of(baseCoalPerSecond);
         this.iconMaterial = iconMaterial;
-        this.effectDescription = effectDescription;
         this.shortDescription = shortDescription;
         this.explanation = explanation;
     }
 
-    /** 保存やコマンドで使う ID（例: {@code pickaxe}）。 */
+    /** 保存やコマンドで使う ID（例: {@code lamp}）。 */
     public String id() {
         return id;
     }
 
-    /** 日本語の名前（例: ツルハシ）。 */
+    /** 日本語の名前（例: 安全灯）。 */
     public String displayName() {
         return displayName;
     }
 
-    public ToolKind kind() {
-        return kind;
-    }
-
-    /** 1 つ目の価格。 */
+    /** 1 つ目の価格。買うたびに ×{@link Formulas#PRICE_GROWTH}。 */
     public BigNum basePrice() {
         return basePrice;
     }
 
-    /** 1 つ買うごとに価格に掛かる倍率（ツルハシ ×2.0、ほかは ×1.15）。 */
-    public double priceGrowth() {
-        return priceGrowth;
-    }
-
-    /**
-     * 1 つあたりの効果量。種類によって意味が違う。
-     *
-     * <ul>
-     *   <li>{@link ToolKind#MANUAL}：1m 崩したときの石炭の増分（深さ倍率を掛ける前）
-     *   <li>{@link ToolKind#COAL}：採炭力 E の増分
-     *   <li>{@link ToolKind#DIG}：掘進力 D の増分
-     * </ul>
-     */
-    public double effect() {
-        return effect;
+    /** 1 つあたりの毎秒の石炭（改良・全体・深さの倍率を掛ける前）。 */
+    public BigNum baseCoalPerSecond() {
+        return baseCoalPerSecond;
     }
 
     /** アイコンにする Material の名前（例: {@code LANTERN}）。 */
@@ -101,17 +79,12 @@ public enum Tool {
         return iconMaterial;
     }
 
-    /** 効果の説明（例: 採炭力 +10）。ショップの説明文用。 */
-    public String effectDescription() {
-        return effectDescription;
-    }
-
     /** 1 行の短い解説。ショップの説明文用。 */
     public String shortDescription() {
         return shortDescription;
     }
 
-    /** はじめて買ったときにチャットに出す詳しい解説（企画書 6 章「解説文（仮）」）。 */
+    /** はじめて買ったときにチャットに出す詳しい解説（企画書 6-4）。 */
     public String explanation() {
         return explanation;
     }
