@@ -211,39 +211,21 @@ public final class MineService implements Listener {
     }
 
     /**
-     * 進み具合が変わったことを知らせる（手掘り #14・自動の掘進 #15 から呼ぶ）。
-     * 持ち主が自分の坑道にいて、置いてある坑道と同じ階層のときだけブロックを直す（企画書 5-3）。
-     * oldMeters は参考で、実際には前回置いたときの進み具合からの差分を直す。
+     * 置いてある坑道を、累計採掘量から求めた進み具合に追いつかせる（毎秒の石炭・手掘り・到達ボーナスのあとに呼ぶ）。
+     * 持ち主が自分の坑道にいるときだけブロックを直す（企画書 5-3）。数値上の階層が置いてある階層より進んでいれば、
+     * 置いてある坑道を掘り切った状態にする（次の階層はケージで降りたときに作る。5-5）。
      */
-    public void onProgress(UUID playerId, long level, double oldMeters, double newMeters) {
-        Player player = Bukkit.getPlayer(playerId);
-        if (player == null) {
-            return;
-        }
-        Session session = sessions.get(playerId);
-        if (session == null || !inMineWorld(player) || session.renderedLevel != level) {
-            return;
-        }
-        renderer.advanceTo(session.section, level, session.renderedMeters, newMeters, List.of(player));
-        session.renderedMeters = newMeters;
-        keepInside(player, session);
-    }
-
-    /** {@link #onProgress(UUID, long, double, double)} のプレイヤー版。 */
-    public void onProgress(Player player, long level, double oldMeters, double newMeters) {
-        onProgress(player.getUniqueId(), level, oldMeters, newMeters);
-    }
-
-    /**
-     * player の区画を、保存データの今の階層・進み具合に作り直す（ケージで降りたとき #22 など）。
-     * 坑道にいなければ何もしない。掘ってある範囲の外にいたら坑底へ戻す。
-     */
-    public void rebuildFor(Player player) {
+    public void syncProgress(Player player) {
         Session session = sessions.get(player.getUniqueId());
         if (session == null || !inMineWorld(player)) {
             return;
         }
-        render(session, dataStore.get(player));
+        double target = TunnelPlan.displayedMeters(session.renderedLevel, dataStore.get(player).totalMined());
+        if (target == session.renderedMeters) {
+            return;
+        }
+        renderer.advanceTo(session.section, session.renderedLevel, session.renderedMeters, target, List.of(player));
+        session.renderedMeters = target;
         keepInside(player, session);
     }
 
@@ -306,9 +288,9 @@ public final class MineService implements Listener {
     // ---- 内部 ----
 
     private void render(Session session, PlayerData data) {
-        // TODO(#60): 階層と進み具合は累計採掘量から計算する
+        // 見た目の階層を数値上の階層に追いつかせる（企画書 5-5）
         long level = Formulas.levelOf(data.totalMined());
-        double meters = TunnelPlan.meters(Formulas.progressOf(data.totalMined()), Formulas.tunnelLength(level));
+        double meters = TunnelPlan.displayedMeters(level, data.totalMined());
         session.section = data.mine().section();
         session.renderedLevel = level;
         session.renderedMeters = meters;

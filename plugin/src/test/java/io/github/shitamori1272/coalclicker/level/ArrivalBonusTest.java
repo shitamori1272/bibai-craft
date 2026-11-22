@@ -33,7 +33,7 @@ class ArrivalBonusTest {
         PlayerData data = player(1, 0);
         BigNum before = data.totalMined();
         ServerData server = new ServerData();
-        Optional<ArrivalBonus.Result> result = ArrivalBonus.claim(data, server);
+        Optional<ArrivalBonus.Result> result = ArrivalBonus.claim(data, server, 1);
         assertTrue(result.isPresent());
         assertEquals(0, result.get().fromLevel());
         assertEquals(1, result.get().toLevel());
@@ -49,7 +49,7 @@ class ArrivalBonusTest {
     @Test
     void 降りなかった階層の分もまとめてもらえる() {
         PlayerData data = player(4, 1);
-        ArrivalBonus.Result result = ArrivalBonus.claim(data, new ServerData()).orElseThrow();
+        ArrivalBonus.Result result = ArrivalBonus.claim(data, new ServerData(), 4).orElseThrow();
         assertEquals(3, result.levels());
         double expected = 10 * 60 * (Math.pow(1.1, 2) + Math.pow(1.1, 3) + Math.pow(1.1, 4));
         assertClose(expected, result.coal());
@@ -60,9 +60,9 @@ class ArrivalBonusTest {
     void 同じ階層では二重にもらえない() {
         PlayerData data = player(3, 0);
         ServerData server = new ServerData();
-        assertTrue(ArrivalBonus.claim(data, server).isPresent());
+        assertTrue(ArrivalBonus.claim(data, server, 3).isPresent());
         BigNum after = data.coal();
-        assertTrue(ArrivalBonus.claim(data, server).isEmpty());
+        assertTrue(ArrivalBonus.claim(data, server, 3).isEmpty());
         assertEquals(after, data.coal());
         assertEquals(3, data.mine().maxReachedLevel());
     }
@@ -71,7 +71,7 @@ class ArrivalBonusTest {
     void 第1坑道ではもらえない() {
         PlayerData data = player(0, 0);
         ServerData server = new ServerData();
-        assertTrue(ArrivalBonus.claim(data, server).isEmpty());
+        assertTrue(ArrivalBonus.claim(data, server, 0).isEmpty());
         assertTrue(data.coal().isZero());
         assertTrue(server.serverTotalMined().isZero());
     }
@@ -79,7 +79,7 @@ class ArrivalBonusTest {
     @Test
     void 最深より浅い階層では何もしない() {
         PlayerData data = player(2, 5);
-        assertTrue(ArrivalBonus.claim(data, new ServerData()).isEmpty());
+        assertTrue(ArrivalBonus.claim(data, new ServerData(), 2).isEmpty());
         assertEquals(5, data.mine().maxReachedLevel());
     }
 
@@ -88,7 +88,40 @@ class ArrivalBonusTest {
         PlayerData data = new PlayerData(UUID.randomUUID());
         data.setTotalMined(BigNum.of(3_000)); // 階層 2
         data.addUpgrade("pickaxe_1");
-        ArrivalBonus.Result result = ArrivalBonus.claim(data, new ServerData()).orElseThrow();
+        ArrivalBonus.Result result = ArrivalBonus.claim(data, new ServerData(), 2).orElseThrow();
         assertClose(2 * 20, result.coal());
+    }
+
+    @Test
+    void 毎秒の石炭が小さい浅い階層は最低保証で深い階層は60秒分() {
+        // 深さ倍率の前で毎秒 1 個・手掘りの基本 80。60 × 1.1^L は階層 1〜3 で 80 未満（最低保証）、4 から上回る
+        PlayerData data = new PlayerData(UUID.randomUUID());
+        data.setToolCount(Tool.LAMP.id(), 1);
+        data.addUpgrade("pickaxe_1");
+        data.addUpgrade("pickaxe_2");
+        data.addUpgrade("pickaxe_3"); // 手掘りの基本 80
+        data.setTotalMined(Formulas.cumulativeToFinish(29));
+        ArrivalBonus.Result result = ArrivalBonus.claim(data, new ServerData(), 30).orElseThrow();
+        double expected = 0;
+        for (int level = 1; level <= 30; level++) {
+            expected += Math.max(60 * Math.pow(1.1, level), 80);
+        }
+        assertClose(expected, result.coal());
+    }
+
+    @Test
+    void ボーナスで階層が進んでもその階層の分は次に着いたときに渡す() {
+        // 階層 1 の境目のすぐ手前で着く。ボーナス 660 で累計が階層 2 に入る
+        PlayerData data = player(1, 0);
+        data.setTotalMined(Formulas.cumulativeToFinish(1).subtract(BigNum.of(100)));
+        ServerData server = new ServerData();
+        ArrivalBonus.Result first = ArrivalBonus.claim(data, server, 1).orElseThrow();
+        assertEquals(1, first.toLevel());
+        assertEquals(2, Formulas.levelOf(data.totalMined()));
+        assertEquals(1, data.mine().maxReachedLevel());
+        // 次にケージで階層 2 に着いたとき
+        ArrivalBonus.Result second = ArrivalBonus.claim(data, server, 2).orElseThrow();
+        assertEquals(1, second.levels());
+        assertClose(10 * 60 * Math.pow(1.1, 2), second.coal());
     }
 }

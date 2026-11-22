@@ -35,7 +35,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 /**
- * ケージへの誘導と降りる演出（企画書 5-5、#22）、着いたときの到達ボーナス（企画書 4-3、#24）。
+ * ケージへの誘導と降りる演出（企画書 5-5）、着いたときの到達ボーナス（企画書 4-4）。
  *
  * <p>自分の坑道にいて、数値上の階層が置いてある坑道より進んでいる人に、1 秒ごとに次を出す。
  * <ul>
@@ -267,7 +267,12 @@ public final class CageGuide implements Listener {
     /** 入坑・ケージで最新の階層に着いたとき（MineService から呼ばれる）。はじめての階層なら到達ボーナスを渡す。 */
     private void onArrived(Player player) {
         hide(player);
-        ArrivalBonus.claim(dataStore.get(player), dataStore.server()).ifPresent(result -> {
+        PlayerData data = dataStore.get(player);
+        long arrived = mineService.renderedLevel(player).orElseGet(() -> Formulas.levelOf(data.totalMined()));
+        Optional<ArrivalBonus.Result> bonus = ArrivalBonus.claim(data, dataStore.server(), arrived);
+        // ボーナスで累計採掘量が増えた分、坑道を進める（階層が進んだら掘り切った状態にしてケージへ誘導する）
+        mineService.syncProgress(player);
+        bonus.ifPresent(result -> {
             player.sendMessage(Component.text(LevelGuide.bonusMessage(result), NamedTextColor.GOLD));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1f);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {

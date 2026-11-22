@@ -1,5 +1,7 @@
 package io.github.shitamori1272.coalclicker.mine;
 
+import io.github.shitamori1272.coalclicker.game.Formulas;
+import io.github.shitamori1272.coalclicker.number.BigNum;
 import io.github.shitamori1272.coalclicker.world.MineLayout;
 
 /**
@@ -51,6 +53,26 @@ public record TunnelPlan(Kind kind, int fromX, int toX, boolean shiftPlayers) {
             return rounded;
         }
         return meters;
+    }
+
+    /**
+     * 階層 renderedLevel の坑道を置いているときに見せる進み具合（m）。累計採掘量 totalMined から決まる数値上の階層が
+     * <ul>
+     *   <li>同じなら、その階層の進み具合 × L
+     *   <li>進んでいれば（ケージ待ち）、置いてある坑道を掘り切った長さ L
+     *   <li>戻っていれば（ふつうは起きない）、0
+     * </ul>
+     */
+    public static double displayedMeters(long renderedLevel, BigNum totalMined) {
+        long numeric = Formulas.levelOf(totalMined);
+        double length = Formulas.tunnelLength(renderedLevel);
+        if (numeric > renderedLevel) {
+            return length;
+        }
+        if (numeric < renderedLevel) {
+            return 0;
+        }
+        return meters(Formulas.progressOf(totalMined), length);
     }
 
     /**
