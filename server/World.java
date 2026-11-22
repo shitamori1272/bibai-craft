@@ -11,13 +11,16 @@ class World {
     static final Path template = data.resolve("../maps/bibai").normalize();
     static final Set<String> personal = Set.of("players", "playerdata", "advancements", "stats",
             "session.lock", "level.dat_old", ".DS_Store");
+    // Paper stores plugin worlds inside the main world; the CoalClicker mine is regenerated, never published.
+    static final Set<Path> generated = Set.of(Path.of("dimensions", "coalclicker"));
 
     static void copyWorld(Path from, Path to) throws IOException {
         if (!Files.isRegularFile(from.resolve("level.dat")))
             throw new IOException("level.dat を含むワールドがありません: " + from);
         Files.walkFileTree(from, new SimpleFileVisitor<Path>() {
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                if (!dir.equals(from) && personal.contains(from.relativize(dir).toString()))
+                Path relative = from.relativize(dir);
+                if (!dir.equals(from) && (personal.contains(relative.toString()) || generated.contains(relative)))
                     return FileVisitResult.SKIP_SUBTREE;
                 Files.createDirectories(to.resolve(from.relativize(dir)));
                 return FileVisitResult.CONTINUE;
