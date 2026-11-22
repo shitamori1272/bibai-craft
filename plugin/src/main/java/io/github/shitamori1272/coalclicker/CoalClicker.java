@@ -11,6 +11,10 @@ import io.github.shitamori1272.coalclicker.level.CageGuide;
 import io.github.shitamori1272.coalclicker.mine.MineCommand;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.mine.SurfaceCommand;
+import io.github.shitamori1272.coalclicker.offline.OfflineListener;
+import io.github.shitamori1272.coalclicker.ranking.Leaderboard;
+import io.github.shitamori1272.coalclicker.ranking.Sidebar;
+import io.github.shitamori1272.coalclicker.ranking.TopCommand;
 import io.github.shitamori1272.coalclicker.shop.Shop;
 import io.github.shitamori1272.coalclicker.world.MineWorld;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
@@ -25,6 +29,7 @@ public final class CoalClicker extends JavaPlugin {
     private DataStore dataStore;
     private MineService mineService;
     private Shop shop;
+    private Sidebar sidebar;
     private Digging digging;
     private CageGuide cageGuide;
 
@@ -41,11 +46,16 @@ public final class CoalClicker extends JavaPlugin {
         // サブコマンドは各機能がここで command.register(...) する
         shop = Shop.register(this);
         digging = Digging.register(this);
+        OfflineListener offline = new OfflineListener(dataStore);
+        getServer().getPluginManager().registerEvents(offline, this);
+        offline.grantOnlinePlayers();
         cageGuide = CageGuide.register(this);
         ActionBarTask.start(this, dataStore, mineService);
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
         command.register(new ResetCommand(dataStore, mineService));
+        command.register(new TopCommand(Leaderboard.start(this, dataStore)));
+        sidebar = Sidebar.start(this, dataStore);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register("coal", "石炭クリッカー", List.of(), command));
         getLogger().info("石炭クリッカーを有効にしました");
@@ -58,6 +68,9 @@ public final class CoalClicker extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (sidebar != null) {
+            sidebar.stop();
+        }
         if (shop != null) {
             shop.close();
         }
