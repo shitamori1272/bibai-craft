@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.data.ServerData;
 import io.github.shitamori1272.coalclicker.dig.DigEngine;
+import io.github.shitamori1272.coalclicker.game.Formulas;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -15,10 +16,10 @@ class OfflineProgressTest {
 
     private static final long NOW = 1_764_000_000L;
 
-    /** 発破 1 個 → 掘進力 D = 1（0.1m/秒）、階層 0 で毎秒 10 個。 */
+    /** 炭車 1 台 → 階層 0 で毎秒 10 個。 */
     private static PlayerData digger(long lastSeen) {
         PlayerData data = new PlayerData(UUID.randomUUID());
-        data.setToolCount("blasting", 1);
+        data.setToolCount("minecart", 1);
         data.setLastSeen(lastSeen);
         return data;
     }
@@ -55,7 +56,7 @@ class OfflineProgressTest {
         PlayerData expected = digger(0);
         DigEngine.autoTick(expected, new ServerData(), 8 * 3600);
         assertEquals(expected.coal(), data.coal());
-        assertEquals(expected.mine().level(), data.mine().level());
+        assertEquals(expected.totalMined(), data.totalMined());
         assertTrue(message.orElseThrow().endsWith("（留守の分は 8 時間まで）"));
     }
 
@@ -72,15 +73,15 @@ class OfflineProgressTest {
     // ---- 反映と通知 ----
 
     @Test
-    void 階層の途中までなら掘った長さと石炭だけ知らせる() {
-        PlayerData data = digger(NOW - 600);
+    void 階層が変わらなければ石炭だけ知らせる() {
+        PlayerData data = digger(NOW - 60);
         ServerData server = new ServerData();
         Optional<String> message = OfflineProgress.grant(data, server, NOW);
-        // 600 秒 × 0.1m = 60m、毎秒 10 個 × 600 秒 = 6,000 個
-        assertEquals(Optional.of("留守の間に 60m 掘り進み、6,000個の石炭を掘りました。"), message);
-        assertEquals(6000, data.coal().toDouble(), 1e-6);
-        assertEquals(6000, server.serverTotalMined().toDouble(), 1e-6);
-        assertEquals(0, data.mine().level());
+        // 毎秒 10 個 × 60 秒 = 600 個（階層 0 のまま）
+        assertEquals(Optional.of("留守の間に 600個の石炭を掘りました。"), message);
+        assertEquals(600, data.coal().toDouble(), 1e-6);
+        assertEquals(600, server.serverTotalMined().toDouble(), 1e-6);
+        assertEquals(0, Formulas.levelOf(data.totalMined()));
         assertEquals(NOW, data.lastSeen());
     }
 
@@ -88,14 +89,13 @@ class OfflineProgressTest {
     void 階層をまたいだら着いた坑道も知らせる() {
         PlayerData data = digger(NOW - 3600);
         String message = OfflineProgress.grant(data, new ServerData(), NOW).orElseThrow();
-        // 64 + 80 + 96 + 112 = 352m で 3,520 秒、残り 80 秒で 8m → 第5坑道
-        assertEquals(4, data.mine().level());
-        assertTrue(message.startsWith("留守の間に 360m 掘り進み、"), message);
-        assertTrue(message.endsWith("第5坑道まで進みました。"), message);
+        // 10 個 × 3,600 秒 = 36,000 個 → 累計 31,000〜63,000 は階層 5（第6坑道）
+        assertEquals(5, Formulas.levelOf(data.totalMined()));
+        assertEquals("留守の間に 3.6万個の石炭を掘りました。第6坑道まで進みました。", message);
     }
 
     @Test
-    void 掘進力が0なら何も起きず通知もしない() {
+    void 道具がなければ何も起きず通知もしない() {
         PlayerData data = new PlayerData(UUID.randomUUID());
         data.setLastSeen(NOW - 3600);
         assertTrue(OfflineProgress.grant(data, new ServerData(), NOW).isEmpty());
@@ -105,10 +105,10 @@ class OfflineProgressTest {
 
     @Test
     void 続けて呼んでも二重には付与しない() {
-        PlayerData data = digger(NOW - 600);
+        PlayerData data = digger(NOW - 60);
         ServerData server = new ServerData();
         OfflineProgress.grant(data, server, NOW);
         assertTrue(OfflineProgress.grant(data, server, NOW + 1).isEmpty());
-        assertEquals(6000, data.coal().toDouble(), 1e-6);
+        assertEquals(600, data.coal().toDouble(), 1e-6);
     }
 }

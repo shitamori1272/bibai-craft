@@ -132,7 +132,7 @@ public final class CageGuide implements Listener {
         Optional<Integer> section = mineService.sectionOf(player);
         Optional<Long> rendered = mineService.renderedLevel(player);
         Optional<Double> meters = mineService.renderedMeters(player);
-        long numeric = dataStore.get(player).mine().level();
+        long numeric = Formulas.levelOf(dataStore.get(player).totalMined());
         if (section.isEmpty() || rendered.isEmpty() || meters.isEmpty() || descents.containsKey(id)
                 || !LevelGuide.awaitingCage(numeric, rendered.get())) {
             hide(player);
@@ -204,7 +204,7 @@ public final class CageGuide implements Listener {
         if (rendered.isEmpty()) {
             return;
         }
-        long numeric = data.mine().level();
+        long numeric = Formulas.levelOf(data.totalMined());
         if (!LevelGuide.awaitingCage(numeric, rendered.get())) {
             player.sendMessage(Component.text("ここが最新の" + LevelGuide.descentTitle(numeric)
                     + "です。掘り切ると、ケージでもっと下へ降りられます。", NamedTextColor.GRAY));
@@ -243,7 +243,7 @@ public final class CageGuide implements Listener {
         if (!mineService.descend(player)) {
             return;
         }
-        long level = dataStore.get(player).mine().level();
+        long level = Formulas.levelOf(dataStore.get(player).totalMined());
         player.showTitle(Title.title(
                 Component.text(LevelGuide.descentTitle(level), NamedTextColor.GOLD),
                 Component.text(LevelGuide.descentSubtitle(level), NamedTextColor.YELLOW),

@@ -3,10 +3,11 @@ package io.github.shitamori1272.coalclicker.shop;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.game.Tool;
+import io.github.shitamori1272.coalclicker.game.Upgrade;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.Objects;
 
-/** 道具の購入処理。Bukkit に依存しないので単体テストできる。 */
+/** 道具と改良の購入処理。Bukkit に依存しないので単体テストできる。TODO(#62): 改良の購入まわりを仕上げる。 */
 public final class Purchase {
 
     private Purchase() {
@@ -46,6 +47,36 @@ public final class Purchase {
         data.addTool(tool.id(), amount);
         boolean first = data.markExplained(tool.id());
         return new Result(true, tool, amount, cost, BigNum.ZERO, first);
+    }
+
+    /**
+     * 改良の購入の結果。
+     *
+     * @param success 買えたか
+     * @param cost 価格
+     * @param shortage 足りなかった石炭（買えたとき・買えない状態だったときは 0）
+     * @param firstPurchase はじめて買った（解説をまだ出していなかった）か
+     */
+    public record UpgradeResult(boolean success, Upgrade upgrade, BigNum cost, BigNum shortage,
+            boolean firstPurchase) {
+    }
+
+    /** 改良を買う。出現していない・買ってある・石炭が足りないときは何も変えない。 */
+    public static UpgradeResult tryBuy(PlayerData data, Upgrade upgrade) {
+        Objects.requireNonNull(data);
+        Objects.requireNonNull(upgrade);
+        BigNum cost = upgrade.price();
+        if (!upgrade.isAvailable(data)) {
+            return new UpgradeResult(false, upgrade, cost, BigNum.ZERO, false);
+        }
+        BigNum coal = data.coal();
+        if (!coal.isGreaterThanOrEqual(cost)) {
+            return new UpgradeResult(false, upgrade, cost, cost.subtract(coal), false);
+        }
+        data.setCoal(coal.subtract(cost).max(BigNum.ZERO));
+        data.addUpgrade(upgrade.id());
+        boolean first = data.markExplained(upgrade.id());
+        return new UpgradeResult(true, upgrade, cost, BigNum.ZERO, first);
     }
 
     /** 今の石炭で買える個数（最大 {@code max} 個）。 */

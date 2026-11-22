@@ -5,233 +5,269 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.shitamori1272.coalclicker.number.BigNum;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class FormulasTest {
 
-    /** 相対誤差で比べる。 */
-    static void assertClose(BigNum expected, BigNum actual) {
+    private static void assertClose(double expected, BigNum actual) {
+        assertClose(BigNum.of(expected), actual, 1e-9);
+    }
+
+    /** 相対誤差 tolerance 以内で等しい。 */
+    private static void assertClose(BigNum expected, BigNum actual, double tolerance) {
         if (expected.isZero()) {
-            assertTrue(actual.isZero(), () -> "0 のはず: " + actual);
+            assertTrue(actual.isZero(), () -> "期待 0 / 実際 " + actual);
             return;
         }
-        double ratio = actual.divide(expected).toDouble();
-        assertEquals(1.0, ratio, 1e-9, () -> "期待 " + expected + " / 実際 " + actual);
-    }
-
-    static void assertClose(double expected, BigNum actual) {
-        assertClose(BigNum.of(expected), actual);
-    }
-
-    // ---- 道具 ----
-
-    @Test
-    void 道具は6種類でIDから引ける() {
-        assertEquals(6, Tool.values().length);
-        assertEquals(Tool.LAMP, Tool.byId("lamp").orElseThrow());
-        assertEquals(Tool.COAL_PICK, Tool.byId("coal_pick").orElseThrow());
-        assertTrue(Tool.byId("unknown").isEmpty());
-        for (Tool tool : Tool.values()) {
-            assertEquals(tool, Tool.byId(tool.id()).orElseThrow());
-            assertTrue(!tool.explanation().isBlank() && !tool.shortDescription().isBlank());
-        }
-        assertEquals(ToolKind.MANUAL, Tool.PICKAXE.kind());
-        assertEquals(ToolKind.DIG, Tool.DRILL.kind());
-        assertEquals("TNT", Tool.BLASTING.iconMaterial());
+        assertEquals(1.0, actual.divide(expected).toDouble(), tolerance,
+                () -> "期待 " + expected + " / 実際 " + actual);
     }
 
     // ---- 価格 ----
 
     @Test
-    void 価格は買うたびに倍率が掛かる() {
+    void 価格は買うたびに1_15倍() {
         assertClose(150, Formulas.price(Tool.LAMP, 0));
-        assertClose(172.5, Formulas.price(Tool.LAMP, 1));
-        assertClose(198.375, Formulas.price(Tool.LAMP, 2));
-        assertClose(500, Formulas.price(Tool.PICKAXE, 0));
-        assertClose(1000, Formulas.price(Tool.PICKAXE, 1));
-        assertClose(4000, Formulas.price(Tool.PICKAXE, 3));
-        assertClose(200, Formulas.price(Tool.BLASTING, 0));
-        assertClose(12_000, Formulas.price(Tool.COAL_PICK, 0));
+        assertClose(150 * 1.15, Formulas.price(Tool.LAMP, 1));
+        assertClose(150 * Math.pow(1.15, 10), Formulas.price(Tool.LAMP, 10));
+        assertClose(3.3e9, Formulas.price(Tool.HEADFRAME, 0));
     }
 
     @Test
-    void 大量に持っていても価格があふれない() {
-        BigNum p = Formulas.price(Tool.PICKAXE, 10_000);
-        assertEquals(Math.log10(500) + 10_000 * Math.log10(2), p.log10(), 1e-6);
+    void 価格は所持数が極端でもあふれない() {
+        // 1.15^(10^12) ＝ 10^(10^12 × log10(1.15))
+        BigNum price = Formulas.price(Tool.LAMP, 1_000_000_000_000L);
+        double expectedLog = Math.log10(150) + 1e12 * Math.log10(1.15);
+        assertEquals(expectedLog, price.log10(), 1e-3);
+        assertTrue(Formulas.price(Tool.LAMP, Long.MAX_VALUE).signum() > 0);
     }
 
     @Test
-    void まとめ買いの価格は1つずつ買った合計と同じ() {
-        assertClose(150 + 172.5 + 198.375, Formulas.totalPrice(Tool.LAMP, 0, 3));
-        assertClose(1000 + 2000 + 4000, Formulas.totalPrice(Tool.PICKAXE, 1, 3));
-        assertTrue(Formulas.totalPrice(Tool.DRILL, 5, 0).isZero());
-        for (Tool tool : Tool.values()) {
-            BigNum sum = BigNum.ZERO;
-            for (long i = 7; i < 7 + 25; i++) {
-                sum = sum.add(Formulas.price(tool, i));
-            }
-            assertClose(sum, Formulas.totalPrice(tool, 7, 25));
+    void まとめ買いの価格は1個ずつの合計() {
+        BigNum sum = BigNum.ZERO;
+        for (int i = 0; i < 10; i++) {
+            sum = sum.add(Formulas.price(Tool.MINECART, 5 + i));
         }
-        assertClose(Formulas.price(Tool.MINECART, 4), Formulas.totalPrice(Tool.MINECART, 4, 1));
+        assertClose(sum, Formulas.totalPrice(Tool.MINECART, 5, 10), 1e-9);
+        assertTrue(Formulas.totalPrice(Tool.MINECART, 5, 0).isZero());
+        assertClose(1000, Formulas.totalPrice(Tool.MINECART, 0, 1));
     }
 
     @Test
-    void 負の所持数は受け付けない() {
+    void 負の所持数は例外() {
         assertThrows(IllegalArgumentException.class, () -> Formulas.price(Tool.LAMP, -1));
         assertThrows(IllegalArgumentException.class, () -> Formulas.totalPrice(Tool.LAMP, 0, -1));
-        assertThrows(IllegalArgumentException.class, () -> Formulas.digPower(Map.of("drill", -1L)));
+        assertThrows(IllegalArgumentException.class, () -> Formulas.depthMultiplier(-1));
     }
 
-    // ---- ステータス ----
+    // ---- 毎秒の石炭 ----
 
     @Test
-    void 初期のステータス() {
-        assertTrue(Formulas.digPower(Map.of()).isZero());
-        assertClose(100, Formulas.coalPower(Map.of()));
-    }
-
-    @Test
-    void 採炭力と掘進力は道具ごとに集計する() {
-        Map<String, Long> tools = new HashMap<>();
-        tools.put("lamp", 3L);
-        tools.put("minecart", 2L);
-        tools.put("coal_pick", 1L);
-        tools.put("blasting", 5L);
-        tools.put("drill", 2L);
-        tools.put("pickaxe", 7L); // 手掘りはどちらにも入らない
-        tools.put("unknown", 9L); // 知らない ID は無視
-        assertClose(100 + 30 + 200 + 1000, Formulas.coalPower(tools));
-        assertClose(5 + 20, Formulas.digPower(tools));
-        assertEquals(7, Formulas.count(tools, Tool.PICKAXE));
-        assertEquals(0, Formulas.count(Map.of(), Tool.PICKAXE));
+    void 毎秒の石炭は道具の基本値と所持数の積の和() {
+        Map<String, Long> tools = Map.of("lamp", 10L, "minecart", 4L, "pickaxe", 99L);
+        // 10 × 1 ＋ 4 × 10 ＝ 50（知らない ID は無視）
+        assertClose(50, Formulas.coalPerSecond(tools, Set.of(), 0));
+        assertTrue(Formulas.coalPerSecond(Map.of(), Set.of(), 0).isZero());
     }
 
     @Test
-    void 所持数がlongの上限近くでもあふれない() {
-        BigNum d = Formulas.digPower(Map.of("drill", Long.MAX_VALUE, "blasting", Long.MAX_VALUE));
-        assertEquals(Math.log10(11.0 * Long.MAX_VALUE), d.log10(), 1e-9);
-    }
-
-    // ---- 掘進 ----
-
-    @Test
-    void 掘進速度() {
-        assertEquals(0, Formulas.digSpeed(BigNum.ZERO));
-        assertEquals(0.1, Formulas.digSpeed(BigNum.ONE), 1e-12);
-        assertEquals(1.0, Formulas.digSpeed(BigNum.of(100)), 1e-12);
-        assertEquals(0.5, Formulas.digSpeed(BigNum.of(25)), 1e-12);
-        assertEquals(1e99, Formulas.digSpeed(BigNum.of(1, 200)), 1e87);
-        assertEquals(Double.MAX_VALUE, Formulas.digSpeed(BigNum.of(1, 10_000)));
+    void 道具の改良1つでその道具だけ2倍() {
+        Map<String, Long> tools = Map.of("lamp", 10L, "minecart", 4L);
+        assertClose(1, Formulas.toolMultiplier(Tool.LAMP, Set.of()));
+        assertClose(2, Formulas.toolMultiplier(Tool.LAMP, Set.of("lamp_1")));
+        assertClose(8, Formulas.toolMultiplier(Tool.LAMP, Set.of("lamp_1", "lamp_2", "lamp_7", "minecart_1")));
+        // 10 × 1 × 4 ＋ 4 × 10 × 2 ＝ 120
+        assertClose(120, Formulas.coalPerSecond(tools, Set.of("lamp_1", "lamp_2", "minecart_3"), 0));
+        assertClose(40, Formulas.toolCoalPerSecond(Tool.LAMP, tools, Set.of("lamp_1", "lamp_2"), 0));
+        assertEquals(2, Formulas.toolUpgradeCount(Tool.LAMP, Set.of("lamp_1", "lamp_2", "pickaxe_1")));
     }
 
     @Test
-    void 坑道の長さ() {
-        assertEquals(64, Formulas.tunnelLength(0));
-        assertEquals(80, Formulas.tunnelLength(1));
-        assertEquals(1_648, Formulas.tunnelLength(99)); // 第 100 坑道
-        // 企画書 5-5 の「第 4898 坑道 78,432m」は 64 + 16 × 4898。第 1 坑道 = 階層 0 とすると 1 つずれている
-        assertEquals(78_432, Formulas.tunnelLength(4_898));
-        assertEquals(64 + 16.0 * Long.MAX_VALUE, Formulas.tunnelLength(Long.MAX_VALUE));
+    void 全体の倍率は今は1() {
+        assertClose(1, Formulas.globalMultiplier(Set.of("lamp_1", "skill_1")));
     }
 
     @Test
-    void 階層にかかる時間() {
-        // 発破 1 つ：0.1m/秒で 64m → 640 秒（約 11 分）
-        assertEquals(640, Formulas.levelSeconds(0, BigNum.ONE), 1e-9);
-        assertEquals(800, Formulas.levelSeconds(1, BigNum.ONE), 1e-9);
-        // 速すぎても最短 10 秒
-        assertEquals(10, Formulas.levelSeconds(0, BigNum.of(1_000_000)));
-        assertEquals(10, Formulas.levelSeconds(0, BigNum.of(1, 10_000)));
-        assertEquals(Double.POSITIVE_INFINITY, Formulas.levelSeconds(0, BigNum.ZERO));
-        assertEquals(Double.POSITIVE_INFINITY, Formulas.levelSecondsAtSpeed(0, 0));
-    }
-
-    @Test
-    void 深さ倍率() {
+    void 深さ倍率は1_1の階層番号乗() {
         assertClose(1, Formulas.depthMultiplier(0));
         assertClose(1.1, Formulas.depthMultiplier(1));
-        assertClose(1.21, Formulas.depthMultiplier(2));
-        assertEquals(4898 * Math.log10(1.1), Formulas.depthMultiplier(4898).log10(), 1e-6);
-        assertEquals(202.7, Formulas.depthMultiplier(4898).log10(), 0.1);
-        assertEquals(Long.MAX_VALUE * Math.log10(1.1),
-                Formulas.depthMultiplier(Long.MAX_VALUE).log10(), Long.MAX_VALUE * 1e-9);
+        assertClose(Math.pow(1.1, 100), Formulas.depthMultiplier(100));
+        // double を超える階層でも指数を直接求める
+        BigNum deep = Formulas.depthMultiplier(1_000_000_000L);
+        assertEquals(1e9 * Math.log10(1.1), deep.log10(), 1e-4);
+        assertClose(BigNum.of(1.1), Formulas.depthMultiplier(7_301).divide(Formulas.depthMultiplier(7_300)), 1e-9);
+        // double の範囲の境目をまたいでもつながる
+        assertClose(BigNum.of(1.1), Formulas.depthMultiplier(7_247).divide(Formulas.depthMultiplier(7_246)), 1e-9);
+        assertTrue(Formulas.depthMultiplier(Long.MAX_VALUE).signum() > 0);
     }
 
-    // ---- 石炭 ----
+    @Test
+    void 毎秒の石炭に深さ倍率が掛かる() {
+        Map<String, Long> tools = Map.of("lamp", 10L);
+        assertClose(10 * Math.pow(1.1, 5), Formulas.coalPerSecond(tools, Set.of(), 5));
+        GameState state = GameState.of(tools, Set.of("lamp_1"), 0, BigNum.of(3_000)); // 階層 2
+        assertClose(20 * 1.21, Formulas.coalPerSecond(state));
+    }
 
     @Test
-    void 一メートルあたりの石炭() {
-        assertClose(100, Formulas.coalPerMeter(BigNum.of(100), 0));
-        assertClose(220, Formulas.coalPerMeter(BigNum.of(200), 1));
-        // 手掘り：(E + 100 × ツルハシ) × 深さ倍率
-        assertClose(100, Formulas.manualCoalPerMeter(BigNum.of(100), 0, 0));
-        assertClose(200, Formulas.manualCoalPerMeter(BigNum.of(100), 1, 0));
-        assertClose((150 + 300) * 1.21, Formulas.manualCoalPerMeter(BigNum.of(150), 3, 2));
+    void もう1つ買うと増える毎秒の石炭() {
+        Map<String, Long> tools = Map.of("blasting", 3L);
+        Set<String> upgrades = Set.of("blasting_1");
+        BigNum before = Formulas.coalPerSecond(tools, upgrades, 4);
+        BigNum after = Formulas.coalPerSecond(Map.of("blasting", 4L), upgrades, 4);
+        assertClose(after.subtract(before), Formulas.marginalCoalPerSecond(Tool.BLASTING, upgrades, 4), 1e-9);
+        assertClose(80 * 2 * Math.pow(1.1, 4), Formulas.marginalCoalPerSecond(Tool.BLASTING, upgrades, 4));
+        // 持っていなくても 1 つ目の分が出る
+        assertClose(1, Formulas.marginalCoalPerSecond(Tool.LAMP, Set.of(), 0));
+    }
+
+    // ---- 手掘り ----
+
+    @Test
+    void 手掘りの基本は10個でツルハシの改良1つごとに2倍() {
+        assertClose(10, Formulas.clickCoal(Set.of(), BigNum.of(1e6)));
+        assertClose(20, Formulas.clickCoal(Set.of("pickaxe_1"), BigNum.ZERO));
+        assertClose(80, Formulas.clickCoal(Set.of("pickaxe_1", "pickaxe_2", "pickaxe_3"), BigNum.ZERO));
+        assertClose(80, Formulas.clickBase(Set.of("pickaxe_1", "pickaxe_2", "pickaxe_3", "lamp_1")));
+    }
+
+    @Test
+    void 熟練の改良1つごとに毎秒の石炭の1パーセントを上乗せ() {
+        // 10 × 2 ＋ 1,000 × 0.01 × 2 ＝ 40
+        assertClose(40, Formulas.clickCoal(Set.of("pickaxe_1", "skill_1", "skill_2"), BigNum.of(1_000)));
+        assertEquals(2, Formulas.skillUpgradeCount(Set.of("skill_1", "skill_2", "pickaxe_1")));
+        assertEquals(1, Formulas.pickaxeUpgradeCount(Set.of("skill_1", "skill_2", "pickaxe_1")));
+        // GameState からは今の階層の毎秒の石炭を使う：100 × 1.1 × 0.01 ＋ 10 ＝ 11.1
+        GameState state = GameState.of(Map.of("minecart", 10L), Set.of("skill_1"), 0, BigNum.of(1_000));
+        assertClose(11.1, Formulas.clickCoal(state));
+    }
+
+    // ---- 累計採掘量による坑道 ----
+
+    @Test
+    void 必要量と累計() {
+        assertClose(1_000, Formulas.levelRequirement(0));
+        assertClose(2_000, Formulas.levelRequirement(1));
+        assertClose(1_000 * Math.pow(2, 50), Formulas.levelRequirement(50));
+        assertTrue(Formulas.cumulativeToFinish(-1).isZero());
+        assertClose(1_000, Formulas.cumulativeToFinish(0));
+        assertClose(3_000, Formulas.cumulativeToFinish(1));
+        assertClose(1_000 * (Math.pow(2, 41) - 1), Formulas.cumulativeToFinish(40));
+        assertClose(1_000 * (Math.pow(2, 101) - 1), Formulas.cumulativeToFinish(100));
+        // 累計 ＝ 必要量の和
+        BigNum sum = BigNum.ZERO;
+        for (int n = 0; n < 60; n++) {
+            sum = sum.add(Formulas.levelRequirement(n));
+            assertClose(sum, Formulas.cumulativeToFinish(n), 1e-12);
+        }
+        assertThrows(IllegalArgumentException.class, () -> Formulas.cumulativeToFinish(-2));
+    }
+
+    @Test
+    void 階層は累計の境目ちょうどで切り替わる() {
+        assertEquals(0, Formulas.levelOf(BigNum.ZERO));
+        assertEquals(0, Formulas.levelOf(BigNum.of(-5)));
+        assertEquals(0, Formulas.levelOf(BigNum.of(999.999)));
+        assertEquals(1, Formulas.levelOf(BigNum.of(1_000)));
+        assertEquals(1, Formulas.levelOf(BigNum.of(2_999)));
+        assertEquals(2, Formulas.levelOf(BigNum.of(3_000)));
+        for (int n = 1; n <= 45; n++) {
+            double boundary = 1_000 * (Math.pow(2, n) - 1);
+            assertEquals(n, Formulas.levelOf(BigNum.of(boundary)), "境目 " + n);
+            assertEquals(n - 1, Formulas.levelOf(BigNum.of(boundary).multiply(1 - 1e-12)), "境目の手前 " + n);
+        }
+        // それより深い階層でも cumulativeToFinish と食い違わない
+        for (long n : new long[] {46, 47, 100, 1_000, 1_023, 1_024, 5_000, 1_000_000, 1L << 40, 1L << 60}) {
+            BigNum boundary = Formulas.cumulativeToFinish(n - 1);
+            assertEquals(n, Formulas.levelOf(boundary), "境目 " + n);
+            assertEquals(n - 1, Formulas.levelOf(boundary.multiply(1 - 1e-12)), "境目の手前 " + n);
+        }
+    }
+
+    @Test
+    void 階層はとても大きな累計でも計算できる() {
+        // 1e300 ＝ 1000 × 2^n → n ≈ log2(1e297) ≈ 986.6
+        assertEquals((long) Math.floor(297 / Math.log10(2)), Formulas.levelOf(BigNum.of(1e300)));
+        assertEquals((long) Math.floor(4997 / Math.log10(2)), Formulas.levelOf(BigNum.of(1, 5000)));
+        long deep = Formulas.levelOf(BigNum.of(1, 1_000_000_000_000L));
+        assertEquals(Math.floor((1e12 - 3) / Math.log10(2)), deep, 1e-3 * deep);
+        // long の上限で頭打ち
+        assertEquals(Long.MAX_VALUE, Formulas.levelOf(BigNum.of(9, Long.MAX_VALUE - 10)));
+        assertTrue(Formulas.progressOf(BigNum.of(9, Long.MAX_VALUE - 10)) < 1);
+    }
+
+    @Test
+    void 進み具合は今の階層の中の割合() {
+        assertEquals(0, Formulas.progressOf(BigNum.ZERO));
+        assertEquals(0.5, Formulas.progressOf(BigNum.of(500)), 1e-12);
+        assertEquals(0, Formulas.progressOf(BigNum.of(1_000)), 1e-12);
+        assertEquals(0.47, Formulas.progressOf(BigNum.of(1_940)), 1e-12);
+        assertEquals(0.25, Formulas.progressOf(BigNum.of(4_000)), 1e-12);
+        // 深い階層でも 0〜1 に収まる
+        for (long n : new long[] {100, 10_000, 1L << 40}) {
+            BigNum start = Formulas.cumulativeToFinish(n - 1);
+            BigNum mid = start.add(Formulas.levelRequirement(n).multiply(0.3));
+            assertEquals(n, Formulas.levelOf(mid));
+            assertEquals(0.3, Formulas.progressOf(mid), 1e-6);
+        }
+        double p = Formulas.progressOf(BigNum.of(1, 5000));
+        assertTrue(p >= 0 && p < 1, "進み具合 " + p);
+    }
+
+    @Test
+    void 坑道の長さは64に階層ごと16を足す() {
+        assertEquals(64, Formulas.tunnelLength(0));
+        assertEquals(80, Formulas.tunnelLength(1));
+        assertEquals(64 + 16 * 99, Formulas.tunnelLength(99));
     }
 
     // ---- 到達ボーナス ----
 
-    /** 1 階層ずつ足す素朴な計算。 */
-    private static BigNum bruteForceBonus(long fromExclusive, long toInclusive, double speed, BigNum e) {
+    /** Σ max(base × 1.1^L × 60, min) を 1 階層ずつ足す。 */
+    private static BigNum bruteForceBonus(long from, long to, BigNum base, BigNum min) {
         BigNum sum = BigNum.ZERO;
-        for (long level = fromExclusive + 1; level <= toInclusive; level++) {
-            BigNum perMeter = e.multiply(Formulas.depthMultiplier(level));
-            BigNum perMinute = perMeter.multiply(speed * 60);
-            sum = sum.add(perMinute.max(perMeter));
+        for (long level = from + 1; level <= to; level++) {
+            sum = sum.add(base.multiply(Formulas.depthMultiplier(level)).multiply(60).max(min));
         }
         return sum;
     }
 
     @Test
-    void 到達ボーナスの例() {
-        // 第 2 坑道（深さ倍率 1.1）に 0.2m/秒・E = 200 で着くと約 2,640 個
-        assertClose(2_640, Formulas.arrivalBonus(0, 1, 0.2, BigNum.of(200)));
-    }
-
-    @Test
-    void 到達ボーナスは最低でも1m分() {
-        // 速度 0 なら E × 深さ倍率
-        assertClose(100 * 1.1, Formulas.arrivalBonus(0, 1, 0, BigNum.of(100)));
-        // 0.01m/秒 × 60 = 0.6m 分 < 1m 分
-        assertClose(100 * 1.21, Formulas.arrivalBonus(1, 2, 0.01, BigNum.of(100)));
-    }
-
-    @Test
-    void 到達ボーナスの合計は一つずつ足した値と同じ() {
-        double[] speeds = {0, 0.01, 1.0 / 60, 0.1, 2.2, 1234.5};
-        long[][] ranges = {{-1, 0}, {0, 1}, {1, 4}, {-1, 30}, {100, 137}, {4_000, 4_898}};
-        for (double speed : speeds) {
-            for (long[] r : ranges) {
-                BigNum e = BigNum.of(1330);
-                assertClose(bruteForceBonus(r[0], r[1], speed, e), Formulas.arrivalBonus(r[0], r[1], speed, e));
+    void 到達ボーナスは1階層ずつ足したものと同じ() {
+        BigNum[] bases = {BigNum.ZERO, BigNum.of(0.01), BigNum.of(0.1), BigNum.of(1), BigNum.of(1e6)};
+        BigNum[] mins = {BigNum.ZERO, BigNum.of(10), BigNum.of(80), BigNum.of(1e9)};
+        long[][] ranges = {{-1, 0}, {0, 1}, {0, 5}, {3, 40}, {-1, 120}, {50, 51}};
+        for (BigNum base : bases) {
+            for (BigNum min : mins) {
+                for (long[] r : ranges) {
+                    BigNum expected = bruteForceBonus(r[0], r[1], base, min);
+                    BigNum actual = Formulas.arrivalBonus(r[0], r[1], base, min);
+                    assertClose(expected, actual, 1e-9);
+                }
             }
         }
     }
 
     @Test
-    void 到達ボーナスは何百万階層でも一瞬で計算できる() {
-        BigNum bonus = Formulas.arrivalBonus(-1, 10_000_000, 5.0, BigNum.of(100));
-        // Σ_{L=0}^{n} 1.1^L ≈ 1.1^(n+1) ÷ 0.1
-        double expected = Math.log10(100 * 5.0 * 60) + 10_000_001 * Math.log10(1.1) + 1;
-        assertEquals(expected, bonus.log10(), 1e-3);
-        assertTrue(Formulas.arrivalBonus(0, Long.MAX_VALUE / 2, Double.MAX_VALUE, BigNum.of(1, 500)).signum() > 0);
+    void 到達ボーナスの最低保証() {
+        // 毎秒 0 でも 1 階層あたり手掘り 1 回分
+        assertClose(30, Formulas.arrivalBonus(0, 3, BigNum.ZERO, BigNum.of(10)));
+        // 毎秒 1 なら 60 × 1.1 ＝ 66 個
+        assertClose(66, Formulas.arrivalBonus(0, 1, BigNum.ONE, BigNum.of(10)));
+        assertTrue(Formulas.arrivalBonus(5, 5, BigNum.ONE, BigNum.of(10)).isZero());
+        assertTrue(Formulas.arrivalBonus(5, 3, BigNum.ONE, BigNum.of(10)).isZero());
+        assertThrows(IllegalArgumentException.class, () -> Formulas.arrivalBonus(-2, 3, BigNum.ONE, BigNum.ONE));
     }
 
     @Test
-    void 到達ボーナスは最後の階層までの全範囲でもあふれない() {
-        BigNum bonus = Formulas.arrivalBonus(-1, Long.MAX_VALUE, 0, BigNum.of(100));
-        // Σ_{L=0}^{MAX} 1.1^L ≈ 1.1^(MAX+1) ÷ 0.1
-        double expected = 2 + ((double) Long.MAX_VALUE + 1) * Math.log10(1.1) + 1;
-        assertEquals(expected, bonus.log10(), expected * 1e-9);
-        assertTrue(Formulas.arrivalBonus(Long.MAX_VALUE - 1, Long.MAX_VALUE, 0, BigNum.of(100)).signum() > 0);
-    }
-
-    @Test
-    void 到達ボーナスは範囲が空なら0() {
-        assertTrue(Formulas.arrivalBonus(5, 5, 1, BigNum.of(100)).isZero());
-        assertTrue(Formulas.arrivalBonus(5, 3, 1, BigNum.of(100)).isZero());
-        assertThrows(IllegalArgumentException.class, () -> Formulas.arrivalBonus(-2, 3, 1, BigNum.of(100)));
+    void 到達ボーナスは何百万階層でも一度に計算できる() {
+        BigNum bonus = Formulas.arrivalBonus(0, 10_000_000, BigNum.of(5), BigNum.of(10));
+        // ほぼ最後の項 × 1.1 ÷ 0.1 ＝ 5 × 60 × 1.1^(10^7) × 11
+        double expectedLog = Math.log10(5 * 60 * 11) + 1e7 * Math.log10(1.1);
+        assertEquals(expectedLog, bonus.log10(), 1e-6);
+        assertTrue(Formulas.arrivalBonus(-1, Long.MAX_VALUE, BigNum.ONE, BigNum.ONE).signum() > 0);
+        assertTrue(Formulas.arrivalBonus(-1, Long.MAX_VALUE, BigNum.ZERO, BigNum.ONE).signum() > 0);
     }
 }

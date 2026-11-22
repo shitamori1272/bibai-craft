@@ -2,6 +2,7 @@ package io.github.shitamori1272.coalclicker.mine;
 
 import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.data.MineState;
+import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.world.MineWorld;
 import io.papermc.paper.entity.TeleportFlag;
@@ -154,7 +155,6 @@ public final class MineService implements Listener {
             player.sendMessage(Component.text("入坑できませんでした。", NamedTextColor.RED));
             return;
         }
-        MineState mine = dataStore.get(player).mine();
         // 地上からの入坑だけを通す（準備の間に坑内へ入っていた場合も断る）
         if (sessions.containsKey(id) && inMineWorld(player)) {
             player.sendMessage(Component.text("すでに坑内にいます。下の坑道へはケージで降りてください。", NamedTextColor.GRAY));
@@ -162,14 +162,14 @@ public final class MineService implements Listener {
         }
         Session session = new Session(player.getLocation(), player.getGameMode());
         sessions.put(id, session);
-        render(session, mine);
+        render(session, dataStore.get(player));
         if (!teleport(player, renderer.arrival(session.section))) {
             sessions.remove(id);
             player.sendMessage(Component.text("入坑できませんでした。", NamedTextColor.RED));
             return;
         }
         player.setGameMode(GameMode.ADVENTURE);
-        player.sendMessage(Component.text("第" + (mine.level() + 1) + "坑道に入坑しました。", NamedTextColor.GOLD)
+        player.sendMessage(Component.text("第" + (session.renderedLevel + 1) + "坑道に入坑しました。", NamedTextColor.GOLD)
                 .append(Component.text(" /coal surface で地上へ戻れます", NamedTextColor.GRAY)));
         // 入坑も「着いた」に数える（企画書 4-3）
         arrivalHandler.accept(player);
@@ -243,7 +243,7 @@ public final class MineService implements Listener {
         if (session == null || !inMineWorld(player)) {
             return;
         }
-        render(session, dataStore.get(player).mine());
+        render(session, dataStore.get(player));
         keepInside(player, session);
     }
 
@@ -259,7 +259,7 @@ public final class MineService implements Listener {
         if (session == null || !inMineWorld(player)) {
             return false;
         }
-        render(session, dataStore.get(player).mine());
+        render(session, dataStore.get(player));
         if (!teleport(player, renderer.arrival(session.section))) {
             keepInside(player, session);
         }
@@ -305,10 +305,11 @@ public final class MineService implements Listener {
 
     // ---- 内部 ----
 
-    private void render(Session session, MineState mine) {
-        long level = mine.level();
-        double meters = TunnelPlan.meters(mine.progress(), Formulas.tunnelLength(level));
-        session.section = mine.section();
+    private void render(Session session, PlayerData data) {
+        // TODO(#60): 階層と進み具合は累計採掘量から計算する
+        long level = Formulas.levelOf(data.totalMined());
+        double meters = TunnelPlan.meters(Formulas.progressOf(data.totalMined()), Formulas.tunnelLength(level));
+        session.section = data.mine().section();
         session.renderedLevel = level;
         session.renderedMeters = meters;
         renderer.rebuild(session.section, level, meters);

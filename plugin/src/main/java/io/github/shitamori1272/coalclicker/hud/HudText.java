@@ -1,6 +1,5 @@
 package io.github.shitamori1272.coalclicker.hud;
 
-import io.github.shitamori1272.coalclicker.data.MineState;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.game.Tool;
@@ -39,11 +38,11 @@ public final class HudText {
      * 置いてある坑道より数値上の階層が進んでいる（awaitingCage）ときは {@link #CAGE_HINT} を付ける。
      */
     public static String actionBar(PlayerData data, boolean awaitingCage) {
-        MineState mine = data.mine();
+        long level = Formulas.levelOf(data.totalMined());
         return "石炭 " + JapaneseFormat.format(data.coal()) + "個"
-                + " ｜ 毎秒 " + JapaneseFormat.format(coalPerSecond(data.tools(), mine.level())) + "個"
-                + " ｜ " + tunnelName(mine.level()) + " 深さ" + depth(mine.level()) + "m "
-                + progressText(mine.level(), mine.progress())
+                + " ｜ 毎秒 " + JapaneseFormat.format(Formulas.coalPerSecond(data)) + "個"
+                + " ｜ " + tunnelName(level) + " 深さ" + depth(level) + "m "
+                + progressText(level, Formulas.progressOf(data.totalMined()))
                 + (awaitingCage ? CAGE_HINT : "");
     }
 
@@ -51,35 +50,23 @@ public final class HudText {
     public record Entry(String label, String value) {
     }
 
-    /** {@code /coal} で表示する自分の記録。 */
+    /** {@code /coal} で表示する自分の記録。TODO(#62): 表示の作り直し。 */
     public static List<Entry> record(PlayerData data) {
         Map<String, Long> tools = data.tools();
-        MineState mine = data.mine();
-        BigNum digPower = Formulas.digPower(tools);
-        BigNum coalPower = Formulas.coalPower(tools);
+        long level = Formulas.levelOf(data.totalMined());
         List<Entry> lines = new ArrayList<>();
         lines.add(new Entry("現在の石炭", JapaneseFormat.format(data.coal()) + "個"));
         lines.add(new Entry("累計採掘量", JapaneseFormat.format(data.totalMined()) + "個"));
-        lines.add(new Entry("掘進力 D", JapaneseFormat.format(digPower)));
-        lines.add(new Entry("採炭力 E", JapaneseFormat.format(coalPower)));
-        lines.add(new Entry("掘進速度", JapaneseFormat.format(BigNum.of(Formulas.digSpeed(digPower))) + "m/秒"));
-        lines.add(new Entry("毎秒の石炭", JapaneseFormat.format(coalPerSecond(tools, mine.level())) + "個"));
-        lines.add(new Entry("今の坑道", tunnelName(mine.level()) + "・深さ" + depth(mine.level()) + "m・"
-                + progressText(mine.level(), mine.progress())));
-        lines.add(new Entry("最深の坑道", tunnelName(mine.maxReachedLevel())));
+        lines.add(new Entry("毎秒の石炭", JapaneseFormat.format(Formulas.coalPerSecond(data)) + "個"));
+        lines.add(new Entry("手掘り 1 回", JapaneseFormat.format(Formulas.clickCoal(data)) + "個"));
+        lines.add(new Entry("今の坑道", tunnelName(level) + "・深さ" + depth(level) + "m・"
+                + progressText(level, Formulas.progressOf(data.totalMined()))));
+        lines.add(new Entry("最深の坑道", tunnelName(data.mine().maxReachedLevel())));
         for (Tool tool : Tool.values()) {
             lines.add(new Entry(tool.displayName(), String.format(Locale.ROOT, "%,d個", Formulas.count(tools, tool))));
         }
+        lines.add(new Entry("改良", String.format(Locale.ROOT, "%,d個", data.upgrades().size())));
         return lines;
-    }
-
-    /** 放置で採れる毎秒の石炭 ＝ 掘進速度 × 1m あたりの石炭。 */
-    public static BigNum coalPerSecond(Map<String, Long> tools, long level) {
-        double speed = Formulas.digSpeed(Formulas.digPower(tools));
-        if (!(speed > 0)) {
-            return BigNum.ZERO;
-        }
-        return Formulas.coalPerMeter(Formulas.coalPower(tools), level).multiply(speed);
     }
 
     /** 例: 階層 1 → {@code 第2坑道}。 */

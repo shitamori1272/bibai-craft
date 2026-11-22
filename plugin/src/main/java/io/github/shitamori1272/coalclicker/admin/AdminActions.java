@@ -1,6 +1,5 @@
 package io.github.shitamori1272.coalclicker.admin;
 
-import io.github.shitamori1272.coalclicker.data.MineState;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.List;
@@ -45,10 +44,9 @@ public final class AdminActions {
         for (String id : List.copyOf(data.tools().keySet())) {
             data.setToolCount(id, 0);
         }
+        data.setClicks(0);
+        data.clearUpgrades();
         data.clearExplained();
-        MineState mine = data.mine();
-        mine.setLevel(0);
-        mine.setProgress(0);
-        mine.setMaxReachedLevel(0);
+        data.mine().setMaxReachedLevel(0);
     }
 }

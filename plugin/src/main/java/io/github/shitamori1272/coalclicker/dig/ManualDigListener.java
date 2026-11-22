@@ -38,7 +38,10 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.util.RayTraceResult;
 
 /**
- * 手掘り（企画書 4-2、#14）。自分の坑道の切羽（3 × 3）を叩くとヒビが 1 段階進み、10 回目で崩れて 1m 進む。
+ * 手掘り（企画書 4-2）。自分の坑道の切羽（3 × 3）を 1 回叩くごとに手掘り 1 回分の石炭がもらえる。
+ * ヒビは見た目だけで、10 回で一周する（坑道の進み方には関係しない）。
+ *
+ * <p>TODO(#59): 新しいルールに合わせた最小限の書き直し。表示（+◯個・効果音）は #59 で作り直す。
  *
  * <p><b>叩いた判定</b>：アドベンチャーモードではクライアントがブロックの破壊を始めないので、破壊開始の
  * {@link PlayerInteractEvent}（LEFT_CLICK_BLOCK）が届かないことがある。そこで次の 2 つを両方見る。
@@ -54,7 +57,7 @@ import org.bukkit.util.RayTraceResult;
  */
 public final class ManualDigListener implements Listener {
 
-    /** 切羽が崩れるまでに叩く回数。 */
+    /** ヒビが一周する回数。 */
     public static final int HITS_PER_METER = 10;
     /** 視線の先を調べる距離の既定値（アドベンチャー・サバイバルのブロック操作距離）。 */
     private static final double DEFAULT_REACH = 4.5;
@@ -145,7 +148,7 @@ public final class ManualDigListener implements Listener {
         double meters = metersOpt.get();
         PlayerData data = dataStore.get(player);
         // 数値上の階層が進んでいる（ケージ待ち #22）・掘り切った坑道には切羽がない
-        if (data.mine().level() != level || meters >= Formulas.tunnelLength(level)) {
+        if (DigEngine.level(data) != level || meters >= Formulas.tunnelLength(level)) {
             return;
         }
         if (!mineService.renderer().isFaceBlock(section, meters, block)) {
@@ -167,17 +170,19 @@ public final class ManualDigListener implements Listener {
         }
         state.lastTick = tick;
         state.count++;
+        BlockData broken = block.getBlockData();
+        DigEngine.Change change = DigEngine.click(data, dataStore.server());
         if (state.count < HITS_PER_METER) {
             showCracks(player, state, (float) state.count / HITS_PER_METER);
-            return;
+        } else {
+            // 10 回目：ヒビが一周する（見た目だけ）
+            state.count = 0;
+            showCracks(player, state, 0f);
         }
-        // 10 回目：切羽が崩れて 1m 進む
-        clearCracks(player, state);
-        hits.remove(id);
-        BlockData broken = block.getBlockData();
-        DigEngine.Change change = DigEngine.manualMeter(data, dataStore.server());
+        playHit(player, state, broken, change, state.count == 0);
+        // 累計採掘量が増えて切羽が動いたら、坑道を直す（叩いた回数は refresh で消える）
         Digging.showProgress(mineService, id, change);
-        playBreak(player, state, broken, change);
+        refresh(player);
     }
 
     // ---- ほかの係から ----
@@ -240,11 +245,12 @@ public final class ManualDigListener implements Listener {
         }
     }
 
-    private static void playBreak(Player player, Hits state, BlockData broken, DigEngine.Change change) {
+    private static void playHit(Player player, Hits state, BlockData broken, DigEngine.Change change,
+            boolean cycled) {
         Location center = new Location(player.getWorld(), state.faceX + 0.5,
                 (MineLayout.TUNNEL_MIN_Y + MineLayout.TUNNEL_MAX_Y + 1) / 2.0, MineLayout.sectionZ(state.section) + 0.5);
-        player.playSound(center, Sound.BLOCK_STONE_BREAK, 1f, 0.8f);
-        player.spawnParticle(Particle.BLOCK, center, 40, 0.8, 0.8, 0.8, 0, broken);
+        player.playSound(center, cycled ? Sound.BLOCK_STONE_BREAK : Sound.BLOCK_STONE_HIT, 1f, 0.8f);
+        player.spawnParticle(Particle.BLOCK, center, cycled ? 40 : 8, 0.8, 0.8, 0.8, 0, broken);
         if (change.coal().signum() > 0) {
             player.showTitle(Title.title(Component.empty(),
                     Component.text("+" + JapaneseFormat.format(change.coal()) + "個", NamedTextColor.GOLD),
