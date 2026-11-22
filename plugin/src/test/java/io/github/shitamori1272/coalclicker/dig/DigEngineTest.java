@@ -114,6 +114,27 @@ class DigEngineTest {
     }
 
     @Test
+    void まとめて進めると複数の階層を掘り切り深さ倍率が反映される() {
+        // 削岩機をとても多く持つと 1 階層は最短の 10 秒。100 秒で第 1〜10 坑道を掘り切る
+        PlayerData data = player(0, 0);
+        data.setToolCount(Tool.DRILL.id(), Long.MAX_VALUE);
+        ServerData server = new ServerData();
+        DigEngine.Change c = DigEngine.autoTick(data, server, 100);
+        assertEquals(10, c.levelsCompleted());
+        assertEquals(10, c.newLevel());
+        assertEquals(0, c.newMeters());
+        assertEquals(10, data.mine().level());
+        double expected = 0;
+        for (int level = 0; level < 10; level++) {
+            expected += 100 * (64 + 16 * level) * Math.pow(1.1, level);
+        }
+        assertClose(expected, c.coal());
+        assertClose(expected, server.serverTotalMined());
+        // 到達ボーナスの最深は自動の掘進では変わらない（着いたときに付く）
+        assertEquals(0, data.mine().maxReachedLevel());
+    }
+
+    @Test
     void 石炭は今の値と累計に足される() {
         PlayerData data = player(0, 0);
         data.setCoal(BigNum.of(30));

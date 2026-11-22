@@ -7,6 +7,7 @@ import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.dig.Digging;
 import io.github.shitamori1272.coalclicker.hud.ActionBarTask;
 import io.github.shitamori1272.coalclicker.hud.StatusCommand;
+import io.github.shitamori1272.coalclicker.level.CageGuide;
 import io.github.shitamori1272.coalclicker.mine.MineCommand;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.mine.SurfaceCommand;
@@ -30,6 +31,7 @@ public final class CoalClicker extends JavaPlugin {
     private Shop shop;
     private Sidebar sidebar;
     private Digging digging;
+    private CageGuide cageGuide;
 
     @Override
     public void onEnable() {
@@ -47,10 +49,11 @@ public final class CoalClicker extends JavaPlugin {
         OfflineListener offline = new OfflineListener(dataStore);
         getServer().getPluginManager().registerEvents(offline, this);
         offline.grantOnlinePlayers();
-        ActionBarTask.start(this, dataStore);
+        cageGuide = CageGuide.register(this);
+        ActionBarTask.start(this, dataStore, mineService);
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
-        command.register(new ResetCommand(dataStore));
+        command.register(new ResetCommand(dataStore, mineService));
         command.register(new TopCommand(Leaderboard.start(this, dataStore)));
         sidebar = Sidebar.start(this, dataStore);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
@@ -73,6 +76,9 @@ public final class CoalClicker extends JavaPlugin {
         }
         if (digging != null) {
             digging.close();
+        }
+        if (cageGuide != null) {
+            cageGuide.close();
         }
         if (mineService != null) {
             mineService.shutdown();

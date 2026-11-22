@@ -9,10 +9,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -78,6 +80,9 @@ public final class MineService implements Listener {
     /** この係がテレポートさせている最中のプレイヤー。テレポートの検査を素通りさせる。 */
     private final Set<UUID> teleporting = new HashSet<>();
     private final BukkitTask patrolTask;
+    /** 坑道の最新の階層に着いたとき（入坑・ケージで降りたとき）に呼ぶ処理。到達ボーナス（#24）に使う。 */
+    private Consumer<Player> arrivalHandler = player -> {
+    };
 
     /** 入坑中の状態。renderedLevel / renderedMeters はワールド上に今置いてある坑道の状態。 */
     private static final class Session {
@@ -119,6 +124,11 @@ public final class MineService implements Listener {
             player.sendMessage(Component.text("入坑の準備中です。少し待ってください。", NamedTextColor.GRAY));
             return;
         }
+        // 坑内での入坑し直しで最新の階層へ移れると、ケージ（#22）を通らずに到達ボーナスがもらえてしまうので断る
+        if (sessions.containsKey(id) && inMineWorld(player)) {
+            player.sendMessage(Component.text("すでに坑内にいます。下の坑道へはケージで降りてください。", NamedTextColor.GRAY));
+            return;
+        }
         MineState mine = dataStore.get(player).mine();
         if (!mine.hasSection()) {
             // 割り当てでサーバーのデータ、setSection でプレイヤーのデータがそれぞれ保存対象になる
@@ -145,23 +155,24 @@ public final class MineService implements Listener {
             return;
         }
         MineState mine = dataStore.get(player).mine();
-        Session session = sessions.get(id);
-        boolean fresh = session == null || !inMineWorld(player);
-        if (fresh) {
-            session = new Session(player.getLocation(), player.getGameMode());
-            sessions.put(id, session);
+        // 地上からの入坑だけを通す（準備の間に坑内へ入っていた場合も断る）
+        if (sessions.containsKey(id) && inMineWorld(player)) {
+            player.sendMessage(Component.text("すでに坑内にいます。下の坑道へはケージで降りてください。", NamedTextColor.GRAY));
+            return;
         }
+        Session session = new Session(player.getLocation(), player.getGameMode());
+        sessions.put(id, session);
         render(session, mine);
         if (!teleport(player, renderer.arrival(session.section))) {
-            if (fresh) {
-                sessions.remove(id);
-            }
+            sessions.remove(id);
             player.sendMessage(Component.text("入坑できませんでした。", NamedTextColor.RED));
             return;
         }
         player.setGameMode(GameMode.ADVENTURE);
         player.sendMessage(Component.text("第" + (mine.level() + 1) + "坑道に入坑しました。", NamedTextColor.GOLD)
                 .append(Component.text(" /coal surface で地上へ戻れます", NamedTextColor.GRAY)));
+        // 入坑も「着いた」に数える（企画書 4-3）
+        arrivalHandler.accept(player);
     }
 
     /** player を地上へ戻す（{@code /coal surface}）。入坑前の場所とゲームモードに戻す。 */
@@ -234,6 +245,49 @@ public final class MineService implements Listener {
         }
         render(session, dataStore.get(player).mine());
         keepInside(player, session);
+    }
+
+    /**
+     * ケージで降りる（#22）。player の区画を保存データの今の階層・進み具合に作り直し、坑底へテレポートさせて、
+     * 着いたときの処理（到達ボーナス）を呼ぶ。テレポートに失敗しても区画は作り直してあり、坑底は必ず掘ってあるので
+     * 着いたものとして扱う（範囲の外にいれば坑底へ戻す）。
+     *
+     * @return 自分の坑道にいて降りられたら true
+     */
+    public boolean descend(Player player) {
+        Session session = sessions.get(player.getUniqueId());
+        if (session == null || !inMineWorld(player)) {
+            return false;
+        }
+        render(session, dataStore.get(player).mine());
+        if (!teleport(player, renderer.arrival(session.section))) {
+            keepInside(player, session);
+        }
+        arrivalHandler.accept(player);
+        return true;
+    }
+
+    /** 着いたときの処理を設定する。onEnable から 1 回だけ呼ぶ。 */
+    public void onArrival(Consumer<Player> handler) {
+        this.arrivalHandler = Objects.requireNonNull(handler);
+    }
+
+    /** player が坑内（入坑中、または坑道ワールド）にいるか。 */
+    public boolean inMine(Player player) {
+        return sessions.containsKey(player.getUniqueId()) || inMineWorld(player);
+    }
+
+    /**
+     * 坑内にいれば地上へ戻す（メッセージは出さない）。管理者のリセット（#16）などで使う。
+     *
+     * @return もともと坑内にいないか、地上へ戻せたら true
+     */
+    public boolean returnToSurface(Player player) {
+        Session session = sessions.get(player.getUniqueId());
+        if (session == null && !inMineWorld(player)) {
+            return true;
+        }
+        return restore(player, session);
     }
 
     /** 坑内の全員を地上へ戻す。プラグインを止めるときに呼ぶ。 */

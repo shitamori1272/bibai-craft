@@ -35,6 +35,14 @@ class HudTextTest {
     }
 
     @Test
+    void ケージ待ちのときは数値上の階層のままヒントを付ける() {
+        PlayerData d = data();
+        d.mine().setLevel(3);
+        assertEquals("石炭 0個 ｜ 毎秒 0個 ｜ 第4坑道 深さ400m 0/112m ｜ ケージで降りよう", HudText.actionBar(d, true));
+        assertEquals("石炭 0個 ｜ 毎秒 0個 ｜ 第4坑道 深さ400m 0/112m", HudText.actionBar(d, false));
+    }
+
+    @Test
     void 第1坑道の初期状態() {
         assertEquals("石炭 0個 ｜ 毎秒 0個 ｜ 第1坑道 深さ100m 0/64m", HudText.actionBar(data()));
     }

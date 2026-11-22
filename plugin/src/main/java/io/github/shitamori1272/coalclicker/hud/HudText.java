@@ -26,13 +26,25 @@ public final class HudText {
     private HudText() {
     }
 
+    /** ケージで降りられるときにアクションバーの後ろに付ける一言（#22）。 */
+    public static final String CAGE_HINT = " ｜ ケージで降りよう";
+
     /** 例: {@code 石炭 1,234個 ｜ 毎秒 12.3個 ｜ 第2坑道 深さ200m 37/80m} */
     public static String actionBar(PlayerData data) {
+        return actionBar(data, false);
+    }
+
+    /**
+     * アクションバーの文字列。坑道・深さはいつも数値上の階層で出す。
+     * 置いてある坑道より数値上の階層が進んでいる（awaitingCage）ときは {@link #CAGE_HINT} を付ける。
+     */
+    public static String actionBar(PlayerData data, boolean awaitingCage) {
         MineState mine = data.mine();
         return "石炭 " + JapaneseFormat.format(data.coal()) + "個"
                 + " ｜ 毎秒 " + JapaneseFormat.format(coalPerSecond(data.tools(), mine.level())) + "個"
                 + " ｜ " + tunnelName(mine.level()) + " 深さ" + depth(mine.level()) + "m "
-                + progressText(mine.level(), mine.progress());
+                + progressText(mine.level(), mine.progress())
+                + (awaitingCage ? CAGE_HINT : "");
     }
 
     /** {@code /coal} の 1 行（見出しと値）。 */
