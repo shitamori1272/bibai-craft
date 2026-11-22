@@ -2,7 +2,7 @@ package io.github.shitamori1272.coalclicker.admin;
 
 import io.github.shitamori1272.coalclicker.command.SubCommand;
 import io.github.shitamori1272.coalclicker.data.DataStore;
-import io.github.shitamori1272.coalclicker.world.MineWorld;
+import io.github.shitamori1272.coalclicker.mine.MineService;
 import java.util.List;
 import java.util.Locale;
 import net.kyori.adventure.text.Component;
@@ -12,16 +12,19 @@ import org.bukkit.entity.Player;
 
 /**
  * {@code /coal admin reset <player> confirm}。オンラインのプレイヤーのデータを初期化する（区画は維持）。
- * {@code confirm} を付けないと確認メッセージだけ出す。
+ * {@code confirm} を付けないと確認メッセージだけ出す。坑内にいる人は、先に地上へ戻してから初期化する
+ * （描かれている坑道とデータが食い違わないように）。地上へ戻せなければ初期化しない。
  */
 public final class ResetCommand implements SubCommand {
 
     private static final String CONFIRM = "confirm";
 
     private final DataStore dataStore;
+    private final MineService mineService;
 
-    public ResetCommand(DataStore dataStore) {
+    public ResetCommand(DataStore dataStore, MineService mineService) {
         this.dataStore = dataStore;
+        this.mineService = mineService;
     }
 
     @Override
@@ -59,17 +62,21 @@ public final class ResetCommand implements SubCommand {
         if (target == null) {
             return;
         }
-        // 坑内で消すと、描かれている坑道とデータが食い違うので断る
-        if (target.getWorld().getKey().equals(MineWorld.KEY)) {
-            sender.sendMessage(Component.text("坑内にいるプレイヤーはリセットできません。先に /coal surface で地上に戻してください。",
-                    NamedTextColor.RED));
-            return;
-        }
         if (args.length == 1 || !args[1].equalsIgnoreCase(CONFIRM)) {
             sender.sendMessage(Component.text(target.getName() + " の石炭・累計採掘量・道具・坑道の進み具合をすべて消します。"
                     + "よければ /coal admin reset " + target.getName() + " confirm を実行してください。",
                     NamedTextColor.YELLOW));
             return;
+        }
+        // 坑内で消すと、描かれている坑道とデータが食い違うので、先に地上へ戻す
+        boolean wasInMine = mineService.inMine(target);
+        if (!mineService.returnToSurface(target)) {
+            sender.sendMessage(Component.text(target.getName() + " を地上へ戻せなかったため、初期化をやめました。",
+                    NamedTextColor.RED));
+            return;
+        }
+        if (wasInMine) {
+            target.sendMessage(Component.text("データの初期化のため、地上へ戻しました。", NamedTextColor.YELLOW));
         }
         AdminActions.reset(dataStore.get(target));
         sender.sendMessage(Component.text(target.getName() + " のデータを初期化しました（区画は維持）。", NamedTextColor.GREEN));

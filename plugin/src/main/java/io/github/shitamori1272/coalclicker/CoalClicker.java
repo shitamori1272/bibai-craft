@@ -7,6 +7,7 @@ import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.dig.Digging;
 import io.github.shitamori1272.coalclicker.hud.ActionBarTask;
 import io.github.shitamori1272.coalclicker.hud.StatusCommand;
+import io.github.shitamori1272.coalclicker.level.CageGuide;
 import io.github.shitamori1272.coalclicker.mine.MineCommand;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.mine.SurfaceCommand;
@@ -25,6 +26,7 @@ public final class CoalClicker extends JavaPlugin {
     private MineService mineService;
     private Shop shop;
     private Digging digging;
+    private CageGuide cageGuide;
 
     @Override
     public void onEnable() {
@@ -39,10 +41,11 @@ public final class CoalClicker extends JavaPlugin {
         // サブコマンドは各機能がここで command.register(...) する
         shop = Shop.register(this);
         digging = Digging.register(this);
-        ActionBarTask.start(this, dataStore);
+        cageGuide = CageGuide.register(this);
+        ActionBarTask.start(this, dataStore, mineService);
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
-        command.register(new ResetCommand(dataStore));
+        command.register(new ResetCommand(dataStore, mineService));
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register("coal", "石炭クリッカー", List.of(), command));
         getLogger().info("石炭クリッカーを有効にしました");
@@ -60,6 +63,9 @@ public final class CoalClicker extends JavaPlugin {
         }
         if (digging != null) {
             digging.close();
+        }
+        if (cageGuide != null) {
+            cageGuide.close();
         }
         if (mineService != null) {
             mineService.shutdown();

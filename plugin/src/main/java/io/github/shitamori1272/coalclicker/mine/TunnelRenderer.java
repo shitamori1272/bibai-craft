@@ -4,6 +4,7 @@ import io.github.shitamori1272.coalclicker.world.MineChunkGenerator;
 import io.github.shitamori1272.coalclicker.world.MineLayout;
 import io.papermc.paper.entity.TeleportFlag;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -61,6 +62,9 @@ public final class TunnelRenderer {
             data -> ((Rail) data).setShape(Rail.Shape.EAST_WEST));
     private static final BlockData CAGE_SIGN = Material.OAK_WALL_SIGN.createBlockData(
             data -> ((WallSign) data).setFacing(BlockFace.EAST));
+    /** 掘り切った切羽の看板。西（坑底の方）を向け、東の切羽に掛ける。 */
+    private static final BlockData END_SIGN = Material.OAK_WALL_SIGN.createBlockData(
+            data -> ((WallSign) data).setFacing(BlockFace.WEST));
 
     private final World world;
     private final Teleporter teleporter;
@@ -147,6 +151,23 @@ public final class TunnelRenderer {
         return block.getWorld().equals(world)
                 && block.getX() == CAGE_X
                 && MineLayout.inTunnelCrossSection(section, block.getY(), block.getZ());
+    }
+
+    /**
+     * 掘り切った坑道（進み具合 meters）の切羽に、西向きの看板を掛ける（#22）。
+     * 看板は坑道の最も東の列（空気）の中央・腰の高さに置く。作り直し（{@link #rebuild}）で埋め直されて消える。
+     */
+    public void placeEndSign(int section, double meters, List<String> lines) {
+        Block block = world.getBlockAt(MineLayout.tunnelEndX(meters), MineLayout.TUNNEL_MIN_Y + 1,
+                MineLayout.sectionZ(section));
+        set(block, END_SIGN);
+        if (block.getState() instanceof Sign sign) {
+            for (int i = 0; i < Math.min(4, lines.size()); i++) {
+                sign.getSide(Side.FRONT).line(i, Component.text(lines.get(i), NamedTextColor.DARK_GRAY));
+            }
+            sign.setWaxed(true);
+            sign.update(true, false);
+        }
     }
 
     /** 区画 section の坑底で、入坑したときに立つ位置（東向き）。 */
