@@ -144,4 +144,63 @@ public final class Progress {
         }
         return new Result(lvl, p, coal, completed, meters);
     }
+
+    /**
+     * 今の階層を {@code meters} m だけ進める（手掘り #14 で使う）。{@link #advance} と同じ決まりで、
+     * その階層の長さで止まり（超えた分は捨てる）、掘り切ったら階層を +1 して次の階層は 0m から始める。
+     * 次の階層へは持ち越さないので、1 回で進むのは多くても 1 階層。
+     *
+     * @param level 今の階層番号（0 始まり）
+     * @param progress 今の進み具合（0〜1 の割合。範囲外は丸める）
+     * @param meters 進める長さ（m。0 以上）
+     * @param coalPerMeter この階層で 1m 掘ったときの石炭
+     * @return 進めた結果。coal ＝ 実際に掘った m × coalPerMeter
+     */
+    public static Result advanceMeters(long level, double progress, double meters, BigNum coalPerMeter) {
+        if (level < 0) {
+            throw new IllegalArgumentException("階層番号は 0 以上にしてください: " + level);
+        }
+        if (Double.isNaN(progress) || !Double.isFinite(meters) || meters < 0) {
+            throw new IllegalArgumentException("進み具合か長さが不正です: " + progress + ", " + meters);
+        }
+        double p = Math.clamp(progress, 0.0, 1.0);
+        long lvl = level;
+        long completed = 0;
+        // 保存データなどで掘り切ったまま残っていた場合は、先に次の階層へ進める（advance と同じ）
+        if (p >= 1) {
+            if (lvl == Long.MAX_VALUE) {
+                p = LAST_PROGRESS;
+            } else {
+                lvl++;
+                completed++;
+                p = 0;
+            }
+        }
+        if (meters == 0) {
+            return new Result(lvl, p, BigNum.ZERO, completed, 0);
+        }
+        double length = Formulas.tunnelLength(lvl);
+        double rest = (1 - p) * length;
+        // 掘った長さは渡された meters を超えない（深い階層で残りが割合の誤差で大きく見えても、もらいすぎない）
+        double dug = Math.min(meters, rest);
+        BigNum coal = coalPerMeter.multiply(dug);
+        double next;
+        if (meters >= rest) {
+            next = 1;
+        } else {
+            next = p + meters / length;
+            if (next <= p) {
+                // とても深い階層では増分が割合の精度より小さい。止まらないよう最小単位だけ進める
+                next = Math.nextUp(p);
+            }
+        }
+        if (next < 1) {
+            return new Result(lvl, next, coal, completed, dug);
+        }
+        // 掘り切った（丸めで 1 に届いた場合を含む）。超えた分は捨てる
+        if (lvl == Long.MAX_VALUE) {
+            return new Result(lvl, LAST_PROGRESS, coal, completed, dug);
+        }
+        return new Result(lvl + 1, 0, coal, completed + 1, dug);
+    }
 }
