@@ -2,6 +2,7 @@ package io.github.shitamori1272.coalclicker.admin;
 
 import io.github.shitamori1272.coalclicker.command.SubCommand;
 import io.github.shitamori1272.coalclicker.data.DataStore;
+import io.github.shitamori1272.coalclicker.world.MineWorld;
 import java.util.List;
 import java.util.Locale;
 import net.kyori.adventure.text.Component;
@@ -56,6 +57,12 @@ public final class ResetCommand implements SubCommand {
         }
         Player target = OnlinePlayers.find(sender, args[0]);
         if (target == null) {
+            return;
+        }
+        // 坑内で消すと、描かれている坑道とデータが食い違うので断る
+        if (target.getWorld().getKey().equals(MineWorld.KEY)) {
+            sender.sendMessage(Component.text("坑内にいるプレイヤーはリセットできません。先に /coal surface で地上に戻してください。",
+                    NamedTextColor.RED));
             return;
         }
         if (args.length == 1 || !args[1].equalsIgnoreCase(CONFIRM)) {

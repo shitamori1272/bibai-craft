@@ -31,9 +31,18 @@ class AdminActionsTest {
     void 付与は今の石炭だけ増やす() {
         PlayerData d = new PlayerData(UUID.randomUUID());
         d.setCoal(BigNum.of(10));
-        assertEquals(BigNum.of(110), AdminActions.give(d, BigNum.of(100)));
+        assertEquals(BigNum.of(110), AdminActions.give(d, BigNum.of(100)).orElseThrow());
         assertEquals(BigNum.of(110), d.coal());
         assertTrue(d.totalMined().isZero());
+    }
+
+    @Test
+    void 大きすぎる付与は断り_データを変えない() {
+        PlayerData d = new PlayerData(UUID.randomUUID());
+        BigNum huge = AdminActions.parseAmount("9e" + Long.MAX_VALUE).orElseThrow();
+        assertEquals(huge, AdminActions.give(d, huge).orElseThrow());
+        assertTrue(AdminActions.give(d, huge).isEmpty());
+        assertEquals(huge, d.coal());
     }
 
     @Test

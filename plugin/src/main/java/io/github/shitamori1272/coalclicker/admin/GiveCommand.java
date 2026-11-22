@@ -61,10 +61,14 @@ public final class GiveCommand implements SubCommand {
         if (target == null) {
             return;
         }
-        BigNum after = AdminActions.give(dataStore.get(target), amount.get());
+        Optional<BigNum> after = AdminActions.give(dataStore.get(target), amount.get());
+        if (after.isEmpty()) {
+            sender.sendMessage(Component.text("付与後の石炭が大きすぎて扱えません。量を減らしてください。", NamedTextColor.RED));
+            return;
+        }
         String given = JapaneseFormat.format(amount.get());
         sender.sendMessage(Component.text(target.getName() + " に石炭 " + given + "個を付与しました（現在 "
-                + JapaneseFormat.format(after) + "個）。", NamedTextColor.GREEN));
+                + JapaneseFormat.format(after.get()) + "個）。", NamedTextColor.GREEN));
         if (target != sender) {
             target.sendMessage(Component.text("管理者から石炭 " + given + "個を受け取りました。", NamedTextColor.GREEN));
         }

@@ -25,11 +25,17 @@ public final class AdminActions {
     /**
      * 石炭を付与する（デモ用）。今の石炭だけを増やし、累計採掘量やサーバー全体の出炭量には数えない。
      *
-     * @return 付与後の石炭
+     * @return 付与後の石炭。大きすぎて表せないときは空（データは変えない）
      */
-    public static BigNum give(PlayerData data, BigNum amount) {
-        data.setCoal(data.coal().add(amount));
-        return data.coal();
+    public static Optional<BigNum> give(PlayerData data, BigNum amount) {
+        BigNum after;
+        try {
+            after = data.coal().add(amount);
+        } catch (ArithmeticException overflow) {
+            return Optional.empty();
+        }
+        data.setCoal(after);
+        return Optional.of(after);
     }
 
     /** データを初期値に戻す。区画番号は再割り当てしないよう残す。 */
