@@ -220,6 +220,15 @@ class FormulasTest {
     }
 
     @Test
+    void 到達ボーナスは最後の階層までの全範囲でもあふれない() {
+        BigNum bonus = Formulas.arrivalBonus(-1, Long.MAX_VALUE, 0, BigNum.of(100));
+        // Σ_{L=0}^{MAX} 1.1^L ≈ 1.1^(MAX+1) ÷ 0.1
+        double expected = 2 + ((double) Long.MAX_VALUE + 1) * Math.log10(1.1) + 1;
+        assertEquals(expected, bonus.log10(), expected * 1e-9);
+        assertTrue(Formulas.arrivalBonus(Long.MAX_VALUE - 1, Long.MAX_VALUE, 0, BigNum.of(100)).signum() > 0);
+    }
+
+    @Test
     void 到達ボーナスは範囲が空なら0() {
         assertTrue(Formulas.arrivalBonus(5, 5, 1, BigNum.of(100)).isZero());
         assertTrue(Formulas.arrivalBonus(5, 3, 1, BigNum.of(100)).isZero());

@@ -49,6 +49,9 @@ public final class Formulas {
             return BigNum.ZERO;
         }
         double g = tool.priceGrowth();
+        if (g == 1) {
+            return price(tool, owned).multiply(BigNum.of(amount));
+        }
         BigNum series = BigNum.pow(g, amount).subtract(BigNum.ONE).divide(g - 1);
         return price(tool, owned).multiply(series);
     }
@@ -109,7 +112,10 @@ public final class Formulas {
         return BigNum.pow(DEPTH_BASE, level);
     }
 
-    /** 坑道の長さ L（m）＝ 64 ＋ 16 × 階層番号。long であふれないよう double で返す。 */
+    /**
+     * 坑道の長さ L（m）＝ 64 ＋ 16 × 階層番号。long であふれないよう double で返す。
+     * 2^53 m（約 9×10^15 m）を超えると double の精度で丸まり、階層ごとの +16m は正確でなくなる。
+     */
     public static double tunnelLength(long level) {
         requireNonNegative(level, "階層番号");
         return BASE_TUNNEL_LENGTH + TUNNEL_LENGTH_STEP * (double) level;
@@ -162,9 +168,11 @@ public final class Formulas {
             return BigNum.ZERO;
         }
         long first = fromExclusive + 1;
-        long n = toInclusive - fromExclusive;
+        // 項の数 n = to − first + 1 は long に収まらないことがある（−1〜Long.MAX_VALUE）。
+        // 1.1^n = 1.1^(to − first) × 1.1 として、n そのものは求めない
+        BigNum growth = BigNum.pow(DEPTH_BASE, toInclusive - first).multiply(DEPTH_BASE);
         BigNum series = depthMultiplier(first)
-                .multiply(BigNum.pow(DEPTH_BASE, n).subtract(BigNum.ONE))
+                .multiply(growth.subtract(BigNum.ONE))
                 .divide(DEPTH_BASE - 1);
         // 速度が double の上限近くでも ×60 であふれないよう BigNum で掛ける
         BigNum perLevel = speed > 0

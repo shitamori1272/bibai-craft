@@ -131,6 +131,57 @@ class ProgressTest {
     }
 
     @Test
+    void 掘り切ったまま保存されていたら掘進力0でも時間0でも次の階層へ進める() {
+        Progress.Result noPower = Progress.advance(4, 1.0, BigNum.ZERO, E100, 10);
+        assertEquals(5, noPower.level());
+        assertEquals(1, noPower.levelsCompleted());
+        assertEquals(0, noPower.progress());
+        assertTrue(noPower.coal().isZero());
+        Progress.Result noTime = Progress.advance(4, 1.0, BigNum.ONE, E100, 0);
+        assertEquals(5, noTime.level());
+        assertEquals(0, noTime.progress());
+    }
+
+    @Test
+    void とても深い階層でも1秒ごとに進み具合が増え最後は掘り切れる() {
+        long level = 1_000_000_000_000_000_000L;
+        // 1 秒の増分（約 6×10^-21）は割合の精度よりずっと小さい
+        double progress = 0.5;
+        for (int i = 0; i < 5; i++) {
+            Progress.Result r = Progress.advance(level, progress, BigNum.ONE, E100, 1);
+            assertEquals(level, r.level());
+            assertTrue(r.progress() > progress, () -> "進んでいない: " + r.progress());
+            assertTrue(r.coal().signum() > 0);
+            progress = r.progress();
+        }
+        // 1 の直前から始めると、数回で掘り切って次の階層へ進む
+        progress = Math.nextDown(Math.nextDown(Math.nextDown(1.0)));
+        for (int i = 0; i < 10 && level == 1_000_000_000_000_000_000L; i++) {
+            Progress.Result r = Progress.advance(level, progress, BigNum.ONE, E100, 1);
+            level = r.level();
+            progress = r.progress();
+        }
+        assertEquals(1_000_000_000_000_000_001L, level);
+        assertEquals(0, progress);
+    }
+
+    @Test
+    void 最後の階層は掘り切れず番号があふれない() {
+        double last = Math.nextDown(1.0);
+        Progress.Result r = Progress.advance(Long.MAX_VALUE, 0.999, BigNum.of(1, 300), E100, 3600);
+        assertEquals(Long.MAX_VALUE, r.level());
+        assertEquals(last, r.progress());
+        assertEquals(0, r.levelsCompleted());
+        Progress.Result again = Progress.advance(Long.MAX_VALUE, last, BigNum.of(1, 300), E100, 3600);
+        assertEquals(Long.MAX_VALUE, again.level());
+        assertEquals(last, again.progress());
+        Progress.Result saved = Progress.advance(Long.MAX_VALUE, 1.0, BigNum.ZERO, E100, 0);
+        assertEquals(Long.MAX_VALUE, saved.level());
+        assertEquals(last, saved.progress());
+        assertEquals(0, saved.levelsCompleted());
+    }
+
+    @Test
     void 不正な入力() {
         assertThrows(IllegalArgumentException.class, () -> Progress.advance(-1, 0, BigNum.ONE, E100, 1));
         assertThrows(IllegalArgumentException.class, () -> Progress.advance(0, Double.NaN, BigNum.ONE, E100, 1));

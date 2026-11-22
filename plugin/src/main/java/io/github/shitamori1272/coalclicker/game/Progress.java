@@ -19,6 +19,10 @@ import io.github.shitamori1272.coalclicker.number.BigNum;
  *
  * <p>1 階層は最短 10 秒なので、ループは「経過秒数 ÷ 10 ＋ 2」回以内で終わる（8 時間で 2,882 回以内）。
  * 呼び出し側はオフライン時間に上限を設けること。
+ *
+ * <p>極端に深い階層（坑道が長く、1 回の増分が割合の精度より小さい）では、止まらないよう進み具合を
+ * double の最小単位ずつ進める。このとき進み具合は飛び飛びになり、正確な値より少し速く進む。
+ * 階層番号は {@link Long#MAX_VALUE} で頭打ちになり、その階層は掘り切れない（進み具合は 1 未満で止まる）。
  */
 public final class Progress {
 
@@ -27,6 +31,9 @@ public final class Progress {
 
     /** tick の境目ちょうどで掘り切ったときに、丸め誤差で次の tick まで捨てないための余裕。 */
     private static final double TICK_EPSILON = 1e-9;
+
+    /** 1 未満で最大の進み具合。最後の階層（{@link Long#MAX_VALUE}）はここで止まる。 */
+    private static final double LAST_PROGRESS = Math.nextDown(1.0);
 
     private Progress() {
     }
@@ -70,23 +77,28 @@ public final class Progress {
             throw new IllegalArgumentException("経過時間は有限にしてください");
         }
         double p = Math.clamp(progress, 0.0, 1.0);
-        double speed = Formulas.digSpeed(digPower);
-        if (!(seconds > 0) || !(speed > 0)) {
-            return new Result(level, Math.min(p, Math.nextDown(1.0)), BigNum.ZERO, 0, 0);
-        }
-
         long lvl = level;
         long completed = 0;
-        double elapsed = 0;
-        double meters = 0;
-        BigNum coal = BigNum.ZERO;
 
         // 保存データなどで掘り切ったまま残っていた場合は、時間を使わずに次の階層へ進める
         if (p >= 1) {
-            lvl++;
-            completed++;
-            p = 0;
+            if (lvl == Long.MAX_VALUE) {
+                p = LAST_PROGRESS;
+            } else {
+                lvl++;
+                completed++;
+                p = 0;
+            }
         }
+
+        double speed = Formulas.digSpeed(digPower);
+        if (!(seconds > 0) || !(speed > 0)) {
+            return new Result(lvl, p, BigNum.ZERO, completed, 0);
+        }
+
+        double elapsed = 0;
+        double meters = 0;
+        BigNum coal = BigNum.ZERO;
 
         while (elapsed < seconds) {
             double length = Formulas.tunnelLength(lvl);
@@ -99,17 +111,30 @@ public final class Progress {
                 // この階層の途中で時間切れ
                 double dp = remaining / levelSeconds;
                 double dug = dp * length;
-                meters += dug;
-                coal = coal.add(perMeter.multiply(dug));
-                p = Math.min(p + dp, Math.nextDown(1.0));
-                break;
+                double next = p + dp;
+                if (next <= p) {
+                    // とても深い階層では増分が割合の精度より小さい。止まらないよう最小単位だけ進める
+                    next = Math.nextUp(p);
+                }
+                if (next < 1) {
+                    meters += dug;
+                    coal = coal.add(perMeter.multiply(dug));
+                    p = next;
+                    break;
+                }
+                // 丸めで 1 に届いたら、掘り切ったものとして扱う（下へ続く）
             }
 
             // 掘り切った。残りの長さぶんだけ石炭をもらい、超えた分は捨てる
             double dug = (1 - p) * length;
             meters += dug;
             coal = coal.add(perMeter.multiply(dug));
-            elapsed += timeToFinish;
+            if (lvl == Long.MAX_VALUE) {
+                // 最後の階層は掘り切れない（番号があふれないよう、ここで止める）
+                p = LAST_PROGRESS;
+                break;
+            }
+            elapsed += Math.min(timeToFinish, remaining);
             if (tickSeconds > 0) {
                 elapsed = Math.ceil(elapsed / tickSeconds - TICK_EPSILON) * tickSeconds;
             }
