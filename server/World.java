@@ -31,6 +31,31 @@ class World {
         });
     }
 
+    // Each top-level directory is a complete, independently owned data pack.
+    static void installPreviewPacks(Path world) throws IOException {
+        Path packs = data.resolve("../world-overlays").normalize();
+        Path target = world.resolve("datapacks");
+        Files.createDirectories(target);
+        try (var entries = Files.newDirectoryStream(packs, Files::isDirectory)) {
+            for (Path pack : entries) {
+                if (!Files.isRegularFile(pack.resolve("pack.mcmeta")))
+                    throw new IOException("pack.mcmeta がありません: " + pack);
+                Path destination = target.resolve(pack.getFileName());
+                // Fail on name collisions with packs supplied by the base map.
+                Files.createDirectory(destination);
+                try (var paths = Files.walk(pack)) {
+                    for (var it = paths.iterator(); it.hasNext();) {
+                        Path source = it.next();
+                        if (source.equals(pack)) continue;
+                        if (Files.isSymbolicLink(source))
+                            throw new IOException("データパックにシンボリックリンクがあります: " + source);
+                        Files.copy(source, destination.resolve(pack.relativize(source)));
+                    }
+                }
+            }
+        }
+    }
+
     static void removeTree(Path dir) throws IOException {
         Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
@@ -94,6 +119,7 @@ class World {
                 if (mode.equals("preview")) {
                     preview = Files.createTempDirectory(data, "preview-");
                     copyWorld(template, preview);
+                    installPreviewPacks(preview);
                 } else if (!Files.exists(local)) {
                     Path staging = Files.createTempDirectory(data, ".seed-");
                     try {
