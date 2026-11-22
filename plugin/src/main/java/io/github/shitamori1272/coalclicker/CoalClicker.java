@@ -14,6 +14,7 @@ public final class CoalClicker extends JavaPlugin {
     private final CoalCommand command = new CoalCommand();
     private MineWorld mineWorld;
     private DataStore dataStore;
+    private Shop shop;
 
     @Override
     public void onEnable() {
@@ -22,7 +23,7 @@ public final class CoalClicker extends JavaPlugin {
         dataStore = new DataStore(this);
         dataStore.start();
         // サブコマンドは各機能がここで command.register(...) する
-        Shop.register(this);
+        shop = Shop.register(this);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register("coal", "石炭クリッカー", List.of(), command));
         getLogger().info("石炭クリッカーを有効にしました");
@@ -35,6 +36,9 @@ public final class CoalClicker extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (shop != null) {
+            shop.close();
+        }
         if (dataStore != null) {
             dataStore.saveAll();
         }
