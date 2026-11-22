@@ -9,6 +9,9 @@ import io.github.shitamori1272.coalclicker.hud.StatusCommand;
 import io.github.shitamori1272.coalclicker.mine.MineCommand;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.mine.SurfaceCommand;
+import io.github.shitamori1272.coalclicker.ranking.Leaderboard;
+import io.github.shitamori1272.coalclicker.ranking.Sidebar;
+import io.github.shitamori1272.coalclicker.ranking.TopCommand;
 import io.github.shitamori1272.coalclicker.shop.Shop;
 import io.github.shitamori1272.coalclicker.world.MineWorld;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
@@ -23,6 +26,7 @@ public final class CoalClicker extends JavaPlugin {
     private DataStore dataStore;
     private MineService mineService;
     private Shop shop;
+    private Sidebar sidebar;
 
     @Override
     public void onEnable() {
@@ -40,6 +44,8 @@ public final class CoalClicker extends JavaPlugin {
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
         command.register(new ResetCommand(dataStore));
+        command.register(new TopCommand(new Leaderboard(dataStore)));
+        sidebar = Sidebar.start(this, dataStore);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register("coal", "石炭クリッカー", List.of(), command));
         getLogger().info("石炭クリッカーを有効にしました");
@@ -52,6 +58,9 @@ public final class CoalClicker extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (sidebar != null) {
+            sidebar.stop();
+        }
         if (shop != null) {
             shop.close();
         }
