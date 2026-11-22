@@ -4,6 +4,7 @@ import io.github.shitamori1272.coalclicker.data.DataStore;
 import java.time.Instant;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -15,7 +16,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
  *
  * <p>DataStore が LOWEST で読み込んだあと（NORMAL）に、同じ tick の中で 1 回だけ反映する。
  * 毎秒の自動の掘進はこのあとの tick から始まるので、その間の時間を二重に数えることはない。
- * /reload でもともとオンラインだった人にはログインイベントが来ないので反映しない。
+ * 反映したらすぐ保存し、自動保存の前に落ちても同じ時間をもう一度付与しないようにする。
  */
 public final class OfflineListener implements Listener {
 
@@ -25,10 +26,23 @@ public final class OfflineListener implements Listener {
         this.dataStore = dataStore;
     }
 
+    /** /reload などで有効化時にすでにオンラインの人へも反映する。DataStore.start のあとに呼ぶ。 */
+    public void grantOnlinePlayers() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            grant(player);
+        }
+    }
+
     @EventHandler(priority = EventPriority.NORMAL)
     public void onJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
+        grant(event.getPlayer());
+    }
+
+    private void grant(Player player) {
         OfflineProgress.grant(dataStore.get(player), dataStore.server(), Instant.now().getEpochSecond())
-                .ifPresent(text -> player.sendMessage(Component.text(text, NamedTextColor.GOLD)));
+                .ifPresent(text -> {
+                    dataStore.saveNow(player.getUniqueId());
+                    player.sendMessage(Component.text(text, NamedTextColor.GOLD));
+                });
     }
 }

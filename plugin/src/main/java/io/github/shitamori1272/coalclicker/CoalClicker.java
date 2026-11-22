@@ -40,7 +40,9 @@ public final class CoalClicker extends JavaPlugin {
         // サブコマンドは各機能がここで command.register(...) する
         shop = Shop.register(this);
         digging = Digging.register(this);
-        getServer().getPluginManager().registerEvents(new OfflineListener(dataStore), this);
+        OfflineListener offline = new OfflineListener(dataStore);
+        getServer().getPluginManager().registerEvents(offline, this);
+        offline.grantOnlinePlayers();
         ActionBarTask.start(this, dataStore);
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
