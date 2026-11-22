@@ -76,7 +76,7 @@ public final class HudText {
     }
 
     /** 例: 階層 1 → {@code 200}。 */
-    static String depth(long level) {
+    public static String depth(long level) {
         return String.format(Locale.ROOT, "%,d", number(level).multiply(BigInteger.valueOf(DEPTH_PER_LEVEL)));
     }
 
