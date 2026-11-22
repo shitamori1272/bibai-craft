@@ -1,0 +1,6 @@
+.gradle/
+build/
+# run-paper の開発用サーバー（ワールド・ログ・EULA の同意記録など）
+run/
+.idea/
+*.iml
