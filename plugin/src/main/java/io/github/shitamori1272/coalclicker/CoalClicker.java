@@ -1,6 +1,8 @@
 package io.github.shitamori1272.coalclicker;
 
 import io.github.shitamori1272.coalclicker.admin.GiveCommand;
+import io.github.shitamori1272.coalclicker.boost.BoostService;
+import io.github.shitamori1272.coalclicker.boost.RichSeam;
 import io.github.shitamori1272.coalclicker.admin.ResetCommand;
 import io.github.shitamori1272.coalclicker.command.CoalCommand;
 import io.github.shitamori1272.coalclicker.data.DataStore;
@@ -32,6 +34,8 @@ public final class CoalClicker extends JavaPlugin {
     private Sidebar sidebar;
     private Digging digging;
     private CageGuide cageGuide;
+    private final BoostService boostService = new BoostService();
+    private RichSeam richSeam;
 
     @Override
     public void onEnable() {
@@ -50,6 +54,7 @@ public final class CoalClicker extends JavaPlugin {
         getServer().getPluginManager().registerEvents(offline, this);
         offline.grantOnlinePlayers();
         cageGuide = CageGuide.register(this);
+        richSeam = RichSeam.register(this, boostService);
         ActionBarTask.start(this, dataStore, mineService);
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
@@ -80,6 +85,9 @@ public final class CoalClicker extends JavaPlugin {
         if (cageGuide != null) {
             cageGuide.close();
         }
+        if (richSeam != null) {
+            richSeam.close();
+        }
         if (mineService != null) {
             mineService.shutdown();
         }
@@ -97,6 +105,14 @@ public final class CoalClicker extends JavaPlugin {
     /** 入坑・坑道の作り直しの係。 */
     public MineService mineService() {
         return mineService;
+    }
+
+    /**
+     * 良質な炭層（#63）の一時的な倍率。石炭を足す係（dig）は
+     * {@link BoostService#productionMultiplier}・{@link BoostService#clickMultiplier} を掛ける。
+     */
+    public BoostService boostService() {
+        return boostService;
     }
 
     /** 保存データの係。 */
