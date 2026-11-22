@@ -12,7 +12,7 @@ import org.bukkit.scheduler.BukkitTask;
  *
  * <p>自動の掘進は 1 秒（20 tick）ごとに、オンラインの全員を {@link DigEngine#autoTick} で 1 秒進める。
  * 坑外にいる人は数値だけ進み、坑道のブロックは持ち主が自分の坑道にいるときだけ {@link MineService} が直す。
- * オフライン中の分はここでは扱わない（#27）。
+ * ログアウト中の分はログイン時に {@code offline.OfflineListener} がまとめて反映する（#27）。
  */
 public final class Digging {
 

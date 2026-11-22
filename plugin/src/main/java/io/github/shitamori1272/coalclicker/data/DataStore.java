@@ -114,6 +114,21 @@ public final class DataStore implements Listener {
         return List.copyOf(ids);
     }
 
+    /**
+     * メモリ上にあるこのプレイヤーのデータと、サーバー全体のデータをすぐ保存する（留守の分の付与のあとなど）。
+     * プレイヤー（lastSeen を持つ）を先に保存するので、途中で落ちても二重付与にはならない。
+     * 失敗したものは dirty のまま残り、自動保存でやり直す。
+     */
+    public void saveNow(UUID uuid) {
+        PlayerData data = cache.get(uuid);
+        if (data != null && data.isDirty() && !repository.savePlayer(data)) {
+            plugin.getLogger().warning("プレイヤーデータをすぐに保存できませんでした。自動保存でやり直します: " + uuid);
+        }
+        if (server.isDirty()) {
+            repository.saveServer(server);
+        }
+    }
+
     /** サーバー全体のデータ。 */
     public ServerData server() {
         return server;

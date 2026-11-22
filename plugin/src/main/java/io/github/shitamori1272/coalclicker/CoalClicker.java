@@ -10,6 +10,7 @@ import io.github.shitamori1272.coalclicker.hud.StatusCommand;
 import io.github.shitamori1272.coalclicker.mine.MineCommand;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.mine.SurfaceCommand;
+import io.github.shitamori1272.coalclicker.offline.OfflineListener;
 import io.github.shitamori1272.coalclicker.ranking.Leaderboard;
 import io.github.shitamori1272.coalclicker.ranking.Sidebar;
 import io.github.shitamori1272.coalclicker.ranking.TopCommand;
@@ -43,6 +44,9 @@ public final class CoalClicker extends JavaPlugin {
         // サブコマンドは各機能がここで command.register(...) する
         shop = Shop.register(this);
         digging = Digging.register(this);
+        OfflineListener offline = new OfflineListener(dataStore);
+        getServer().getPluginManager().registerEvents(offline, this);
+        offline.grantOnlinePlayers();
         ActionBarTask.start(this, dataStore);
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
