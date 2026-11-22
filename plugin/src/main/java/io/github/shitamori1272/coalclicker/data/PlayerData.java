@@ -108,6 +108,14 @@ public final class PlayerData {
         return added;
     }
 
+    /** 解説の表示済みをすべて消す（管理コマンドの初期化用）。 */
+    public void clearExplained() {
+        if (!explained.isEmpty()) {
+            explained.clear();
+            markDirty();
+        }
+    }
+
     /** 解説を表示済みの道具 ID の一覧（読み取り専用）。 */
     public Set<String> explained() {
         return Collections.unmodifiableSet(explained);
