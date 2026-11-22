@@ -8,15 +8,16 @@ import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.Optional;
 
 /**
- * 到達ボーナス（企画書 4-3、#24）。ケージか入坑で実際に着いたときに呼ぶ。Bukkit に依存しない。
+ * 到達ボーナス（企画書 4-4）。ケージか入坑で実際に着いたときに、着いた階層（作り直した見た目の階層）を渡して呼ぶ。
+ * Bukkit に依存しない。
  *
  * <p>{@code maxReachedLevel} は「すでにボーナスをもらった（または最初からいる）最深の階層」。
  * 初期値 0 は第 1 坑道に着いた扱いなので、第 1 坑道のボーナスはない。
- * 今の階層（累計採掘量から決まる数値上の階層）がそれより深ければ、間の階層ぶんを {@link Formulas#arrivalBonus} でまとめて渡す。
- * 1 階層あたり ＝ その階層での毎秒の石炭 × 60 秒分（最低保証はその階層での手掘り 1 回分）。
+ * 着いた階層がそれより深ければ、間の階層ぶんを {@link Formulas#arrivalBonus} の和の公式でまとめて渡す。
+ * 1 階層あたり ＝ その階層での毎秒の石炭（深さ倍率を掛ける前の値 × 1.1^階層）× 60 秒分（最低保証はその階層での手掘り 1 回分）。
  *
- * <p>ボーナスは累計採掘量に含めるが、それで階層が進んでも、その階層のボーナスは次に着いたときに渡す。
- * TODO(#60): ケージで降りた階層（見た目の階層）と合わせるかを見直す。
+ * <p>ボーナスは累計採掘量に含めるので、それで数値上の階層が進むことがある。その階層は「着いた」ことにならず、
+ * ボーナスは次にケージで着いたときに渡す（着いた階層は呼ぶ側が決めるので、ここで累計採掘量から求め直さない）。
  */
 public final class ArrivalBonus {
 
@@ -39,13 +40,13 @@ public final class ArrivalBonus {
     }
 
     /**
-     * 今の階層がはじめて着いた階層なら、ボーナスを石炭・累計採掘量・サーバー全体の累計採掘量に足し、
-     * {@code maxReachedLevel} を今の階層にする。すでに着いたことのある階層なら何もしない。
+     * 着いた階層 {@code arrivedLevel} がはじめての階層なら、ボーナスを石炭・累計採掘量・サーバー全体の累計採掘量に足し、
+     * {@code maxReachedLevel} をその階層にする。すでに着いたことのある階層なら何もしない。
      */
-    public static Optional<Result> claim(PlayerData data, ServerData server) {
+    public static Optional<Result> claim(PlayerData data, ServerData server, long arrivedLevel) {
         MineState mine = data.mine();
         long from = mine.maxReachedLevel();
-        long to = Formulas.levelOf(data.totalMined());
+        long to = arrivedLevel;
         if (to <= from) {
             return Optional.empty();
         }

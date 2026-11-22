@@ -3,7 +3,6 @@ package io.github.shitamori1272.coalclicker.boost;
 import io.github.shitamori1272.coalclicker.CoalClicker;
 import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
-import io.github.shitamori1272.coalclicker.dig.DigEngine;
 import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.number.BigNum;
@@ -286,20 +285,11 @@ public final class RichSeam implements Listener {
     private BigNum grantJackpot(Player player) {
         PlayerData data = dataStore.get(player);
         BigNum coal = RichSeamRules.jackpotCoal(data.coal(), Formulas.coalPerSecond(data));
-        long oldLevel = DigEngine.level(data);
-        double oldMeters = DigEngine.meters(data);
         data.setCoal(data.coal().add(coal));
         data.setTotalMined(data.totalMined().add(coal));
         dataStore.server().addServerTotalMined(coal);
-        long newLevel = DigEngine.level(data);
-        double newMeters = DigEngine.meters(data);
-        // dig.Digging#showProgress と同じ知らせ方（あちらはパッケージ内だけで使えるため）
-        if (newLevel > oldLevel) {
-            mineService.onProgress(player, oldLevel, oldMeters, Formulas.tunnelLength(oldLevel));
-            mineService.onProgress(player, newLevel, 0, newMeters);
-        } else if (newMeters != oldMeters) {
-            mineService.onProgress(player, newLevel, oldMeters, newMeters);
-        }
+        // 累計採掘量が増えた分、坑道を進める（階層が進んだら掘り切った状態にしてケージへ誘導する）
+        mineService.syncProgress(player);
         return coal;
     }
 

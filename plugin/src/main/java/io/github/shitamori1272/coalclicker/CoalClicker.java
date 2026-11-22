@@ -58,7 +58,7 @@ public final class CoalClicker extends JavaPlugin {
         ActionBarTask.start(this, dataStore, mineService);
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
-        command.register(new ResetCommand(dataStore, mineService));
+        command.register(new ResetCommand(dataStore, mineService, boostService));
         command.register(new TopCommand(Leaderboard.start(this, dataStore)));
         sidebar = Sidebar.start(this, dataStore);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,

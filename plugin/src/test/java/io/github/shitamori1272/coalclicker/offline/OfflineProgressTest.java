@@ -8,6 +8,8 @@ import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.data.ServerData;
 import io.github.shitamori1272.coalclicker.dig.DigEngine;
 import io.github.shitamori1272.coalclicker.game.Formulas;
+import io.github.shitamori1272.coalclicker.number.BigNum;
+import io.github.shitamori1272.coalclicker.number.JapaneseFormat;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -86,12 +88,39 @@ class OfflineProgressTest {
     }
 
     @Test
-    void 階層をまたいだら着いた坑道も知らせる() {
+    void 階層をまたいだら途中から深さ倍率が上がり進んだ階層も知らせる() {
         PlayerData data = digger(NOW - 3600);
         String message = OfflineProgress.grant(data, new ServerData(), NOW).orElseThrow();
-        // 10 個 × 3,600 秒 = 36,000 個 → 累計 31,000〜63,000 は階層 5（第6坑道）
-        assertEquals(5, Formulas.levelOf(data.totalMined()));
-        assertEquals("留守の間に 3.6万個の石炭を掘りました。第6坑道まで進みました。", message);
+        // 階層ごとに区切って足す：毎秒 10 × 1.1^L で、境目 1,000・3,000・7,000・15,000・31,000 を越えていく
+        double expected = simulate(10, 3600);
+        assertEquals(1.0, data.totalMined().toDouble() / expected, 1e-4);
+        // ログアウトしたときの階層のまま（36,000 個）より多い
+        assertTrue(data.totalMined().toDouble() > 36_000);
+        long level = Formulas.levelOf(data.totalMined());
+        assertEquals(5, level);
+        assertEquals("留守の間に " + JapaneseFormat.format(data.coal()) + "個の石炭を掘りました。第6坑道まで進みました（5階層）。",
+                message);
+    }
+
+    @Test
+    void 留守の分は一秒ずつのオンラインの分と同じ() {
+        PlayerData offline = digger(NOW - 5000);
+        OfflineProgress.grant(offline, new ServerData(), NOW);
+        PlayerData online = digger(0);
+        for (int i = 0; i < 5000; i++) {
+            DigEngine.autoTick(online, new ServerData(), 1);
+        }
+        assertEquals(1.0, offline.totalMined().toDouble() / online.totalMined().toDouble(), 1e-9);
+    }
+
+    /** 小刻み（0.01 秒）に、その時点の階層の毎秒の石炭を足していく。 */
+    private static double simulate(double base, double seconds) {
+        double total = 0;
+        double dt = 0.01;
+        for (long i = 0; i < Math.round(seconds / dt); i++) {
+            total += base * Math.pow(1.1, Formulas.levelOf(BigNum.of(total))) * dt;
+        }
+        return total;
     }
 
     @Test
