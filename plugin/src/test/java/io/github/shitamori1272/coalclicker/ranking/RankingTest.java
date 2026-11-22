@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.shitamori1272.coalclicker.data.PlayerData;
+import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.ArrayList;
 import java.util.List;
@@ -90,6 +91,19 @@ class RankingTest {
         Ranking ranking = Ranking.of(Category.DEPTH, List.of(sa, sb));
         assertEquals(List.of("1:b", "2:a"), names(ranking.top(10)));
         assertEquals("第8坑道（深さ800m）", Category.DEPTH.format(sb));
+    }
+
+    @Test
+    void 保存データから毎秒の石炭と累計採掘量を抜き出す() {
+        PlayerData d = new PlayerData(id(1));
+        d.setTotalMined(BigNum.of(1_000)); // 階層 1 → ×1.1
+        d.setToolCount("lamp", 10);
+        d.addUpgrade("lamp_1"); // 安全灯 ×2
+        PlayerStats stats = PlayerStats.from(d, "a");
+        assertEquals(Formulas.coalPerSecond(d), stats.coalPerSecond());
+        assertEquals("毎秒 22個", Category.RATE.format(stats));
+        assertEquals(BigNum.of(1_000), stats.totalMined());
+        assertEquals("1,000個", Category.MINED.format(stats));
     }
 
     @Test

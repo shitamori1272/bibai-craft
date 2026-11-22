@@ -142,17 +142,23 @@ public final class DataCodec {
         throw new IllegalArgumentException(key + " がリストではありません: " + value);
     }
 
+    /** 0 以上の BigNum を読む（石炭・累計採掘量はどれも負にならない）。負の値は壊れたファイルとして扱う。 */
     private static BigNum bigNum(Map<String, ?> root, String key) {
         Object value = root.get(key);
+        BigNum n;
         try {
-            return switch (value) {
+            n = switch (value) {
                 case null -> BigNum.ZERO;
-                case Number n -> BigNum.of(finiteDouble(n, key));
+                case Number num -> BigNum.of(finiteDouble(num, key));
                 default -> BigNum.parse(value.toString());
             };
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException(key + " が不正です: " + value, e);
         }
+        if (n.signum() < 0) {
+            throw new IllegalArgumentException(key + " が負の数です: " + value);
+        }
+        return n;
     }
 
     private static long nonNegativeLong(Map<?, ?> map, String key, String label) {

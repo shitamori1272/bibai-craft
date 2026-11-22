@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.mine.TunnelPlan.Kind;
+import io.github.shitamori1272.coalclicker.number.BigNum;
 import io.github.shitamori1272.coalclicker.world.MineLayout;
 import org.junit.jupiter.api.Test;
 
@@ -111,5 +113,17 @@ class TunnelPlanTest {
         assertEquals(0.0, TunnelPlan.meters(-0.5, 64));
         assertEquals(64.0, TunnelPlan.meters(1.5, 64));
         assertEquals(10.5, TunnelPlan.meters(10.5 / 64, 64), 1e-9);
+    }
+
+    @Test
+    void 見せる進み具合は累計採掘量から決まり階層が進んだら掘り切った長さ() {
+        // 階層 0：累計 250 ÷ 1,000 × 64m ＝ 16m
+        assertEquals(16.0, TunnelPlan.displayedMeters(0, BigNum.of(250)));
+        // 階層 1：(1,000 + 500) → 500 ÷ 2,000 × 80m ＝ 20m
+        assertEquals(20.0, TunnelPlan.displayedMeters(1, BigNum.of(1_500)));
+        // 置いてあるのは階層 0 だが数値上は階層 3：階層 0 を掘り切った 64m
+        assertEquals(64.0, TunnelPlan.displayedMeters(0, Formulas.cumulativeToFinish(2).add(BigNum.of(5))));
+        // 数値上の階層が戻った（ふつうは起きない）
+        assertEquals(0.0, TunnelPlan.displayedMeters(4, BigNum.of(10)));
     }
 }

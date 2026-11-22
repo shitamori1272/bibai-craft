@@ -1,5 +1,6 @@
 package io.github.shitamori1272.coalclicker.admin;
 
+import io.github.shitamori1272.coalclicker.boost.BoostService;
 import io.github.shitamori1272.coalclicker.command.SubCommand;
 import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.mine.MineService;
@@ -21,10 +22,12 @@ public final class ResetCommand implements SubCommand {
 
     private final DataStore dataStore;
     private final MineService mineService;
+    private final BoostService boostService;
 
-    public ResetCommand(DataStore dataStore, MineService mineService) {
+    public ResetCommand(DataStore dataStore, MineService mineService, BoostService boostService) {
         this.dataStore = dataStore;
         this.mineService = mineService;
+        this.boostService = boostService;
     }
 
     @Override
@@ -63,7 +66,8 @@ public final class ResetCommand implements SubCommand {
             return;
         }
         if (args.length == 1 || !args[1].equalsIgnoreCase(CONFIRM)) {
-            sender.sendMessage(Component.text(target.getName() + " の石炭・累計採掘量・道具・坑道の進み具合をすべて消します。"
+            sender.sendMessage(Component.text(target.getName() + " の石炭・累計採掘量・道具・改良・手掘りの回数・坑道の進み具合をすべて消します"
+                    + "（区画は残します）。"
                     + "よければ /coal admin reset " + target.getName() + " confirm を実行してください。",
                     NamedTextColor.YELLOW));
             return;
@@ -79,6 +83,7 @@ public final class ResetCommand implements SubCommand {
             target.sendMessage(Component.text("データの初期化のため、地上へ戻しました。", NamedTextColor.YELLOW));
         }
         AdminActions.reset(dataStore.get(target));
+        boostService.clear(target.getUniqueId());
         sender.sendMessage(Component.text(target.getName() + " のデータを初期化しました（区画は維持）。", NamedTextColor.GREEN));
         if (target != sender) {
             target.sendMessage(Component.text("管理者があなたのデータを初期化しました。", NamedTextColor.YELLOW));

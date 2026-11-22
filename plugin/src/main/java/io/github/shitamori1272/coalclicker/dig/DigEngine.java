@@ -42,15 +42,33 @@ public final class DigEngine {
         }
     }
 
-    /** 毎秒の石炭を {@code seconds} 秒ぶん足す（オンライン中は 1 秒ごと、ログアウト中の分はまとめて）。 */
+    /** 毎秒の石炭を {@code seconds} 秒ぶん足す（倍率なし。ログアウト中の分はこちら）。 */
     public static Change autoTick(PlayerData data, ServerData server, double seconds) {
-        BigNum base = Formulas.coalPerSecond(data.tools(), data.upgrades(), 0);
+        return autoTick(data, server, seconds, 1);
+    }
+
+    /**
+     * 毎秒の石炭 × {@code productionMultiplier}（良質な炭層の一時的な倍率。なければ 1）を {@code seconds} 秒ぶん足す。
+     * オンライン中は 1 秒ごとに呼ぶ。
+     */
+    public static Change autoTick(PlayerData data, ServerData server, double seconds, double productionMultiplier) {
+        BigNum base = Formulas.coalPerSecond(data.tools(), data.upgrades(), 0).multiply(productionMultiplier);
         return add(data, server, autoCoal(base, data.totalMined(), seconds));
     }
 
-    /** 切羽を 1 回叩く。手掘り 1 回分の石炭（{@link Formulas#clickCoal}）をもらい、手掘りの回数を 1 増やす。 */
+    /** 切羽を 1 回叩く（倍率なし）。 */
     public static Change click(PlayerData data, ServerData server) {
-        BigNum coal = Formulas.clickCoal(data);
+        return click(data, server, 1, 1);
+    }
+
+    /**
+     * 切羽を 1 回叩く。手掘り 1 回分の石炭をもらい、手掘りの回数を 1 増やす。
+     * 石炭 ＝ clickCoal(改良, 毎秒の石炭 × productionMultiplier) × clickMultiplier（倍率は良質な炭層の一時的なもの。なければ 1）。
+     */
+    public static Change click(PlayerData data, ServerData server, double productionMultiplier,
+            double clickMultiplier) {
+        BigNum perSecond = Formulas.coalPerSecond(data).multiply(productionMultiplier);
+        BigNum coal = Formulas.clickCoal(data.upgrades(), perSecond).multiply(clickMultiplier);
         data.incrementClicks();
         return add(data, server, coal);
     }

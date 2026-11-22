@@ -2,9 +2,11 @@ package io.github.shitamori1272.coalclicker.game;
 
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 
 /**
@@ -284,66 +286,91 @@ public final class Formulas {
     // ---- 到達ボーナス ----
 
     /**
+     * 到達ボーナスの合計（企画書 4-4）。毎秒の石炭（深さ倍率の前）が {@code baseCoalPerSecond} のとき。
+     * 最低保証（手掘り 1 回分）は {@code upgrades} のツルハシ・熟練の改良から決まる。
+     *
+     * @see #arrivalBonus(long, long, BigNum, BigNum, double)
+     */
+    public static BigNum arrivalBonus(long fromExclusive, long toInclusive, BigNum baseCoalPerSecond,
+            Set<String> upgrades) {
+        return arrivalBonus(fromExclusive, toInclusive, baseCoalPerSecond, clickBase(upgrades),
+                SKILL_RATE * skillUpgradeCount(upgrades));
+    }
+
+    /**
      * 到達ボーナスの合計 ＝ 階層 {@code fromExclusive} の次から {@code toInclusive} までの各階層 L について
-     * max(base × 1.1^L × 60, minimum) を足したもの。
+     * max(A × 1.1^L, k ＋ c × 1.1^L) を足したもの。b ＝ 深さ倍率の前の毎秒の石炭として、
+     * A ＝ b × 60（60 秒分）、k ＋ c × 1.1^L ＝ その階層での手掘り 1 回分（k ＝ {@code clickBase}、c ＝ {@code clickRate} × b）。
      *
-     * <p>base × 1.1^L は L について増えていくので、minimum を下回るのは前の方の階層だけ。そこで
-     * 「base × 1.1^L × 60 ≥ minimum になる最初の階層 t」を対数で求め（比較で補正）、
-     * 合計 ＝ minimum ×（t より前の階層の数）＋ base × 60 × Σ_{L=t..to} 1.1^L とする。
-     * Σ は等比数列の和の公式で求めるので、何百万階層ぶんでも一度で済む。
-     *
-     * <p>最低保証について：企画書では「手掘り 1 回分」。手掘り 1 回は 10 × 2^p ＋ 毎秒 × 0.01 × s で、
-     * 後ろの項は階層ごとに変わる。呼び出し側には階層によらない部分 {@link #clickBase(Set)} を渡してもらう想定。
-     * 毎秒に比例する部分（最大で毎秒の 5%）は 60 秒分（毎秒の 60 倍）より十分小さいので、無視しても
-     * 1 階層あたりのずれは 1/1,200 以下になる。
+     * <p>A × 1.1^L ≥ k ＋ c × 1.1^L ⇔ (A − c) × 1.1^L ≥ k。A &gt; c なら左辺は L について増えるので、
+     * これが成り立つ最初の階層 t を対数で求め（比較で補正）、
+     * 合計 ＝ k ×（t より前の階層の数）＋ c × Σ_{L&lt;t} 1.1^L ＋ A × Σ_{L≥t} 1.1^L とする。
+     * A ≤ c、またはどの階層でも届かなければ、全階層で手掘り 1 回分を使う。
+     * Σ は等比数列の和の公式なので、何百万階層ぶんでも一度で済む。
      *
      * @param fromExclusive すでにボーナスをもらった最深の階層（まだ一度ももらっていないなら −1）
      * @param toInclusive 今回着いた階層
      * @param baseCoalPerSecond 深さ倍率を掛ける前の毎秒の石炭（{@code coalPerSecond(tools, upgrades, 0)}）
-     * @param minimum 1 階層あたりの最低保証（ふつうは {@link #clickBase(Set)}）
+     * @param clickBase 手掘り 1 回のうち毎秒の石炭によらない部分（{@link #clickBase(Set)}）
+     * @param clickRate 手掘り 1 回に上乗せする毎秒の石炭の割合（{@link #SKILL_RATE} × 熟練の改良の数）
      */
-    public static BigNum arrivalBonus(long fromExclusive, long toInclusive, BigNum baseCoalPerSecond, BigNum minimum) {
+    public static BigNum arrivalBonus(long fromExclusive, long toInclusive, BigNum baseCoalPerSecond,
+            BigNum clickBase, double clickRate) {
         if (fromExclusive < -1) {
             throw new IllegalArgumentException("fromExclusive は −1 以上にしてください: " + fromExclusive);
+        }
+        if (!(clickRate >= 0) || Double.isInfinite(clickRate)) {
+            throw new IllegalArgumentException("clickRate は 0 以上の有限の数にしてください: " + clickRate);
         }
         if (toInclusive <= fromExclusive) {
             return BigNum.ZERO;
         }
         long first = fromExclusive + 1;
-        BigNum perLevel = baseCoalPerSecond.multiply(ARRIVAL_BONUS_SECONDS);
-        BigNum min = minimum.max(BigNum.ZERO);
-        if (perLevel.signum() <= 0) {
-            return min.multiply(levelCount(first, toInclusive));
+        BigNum base = baseCoalPerSecond.max(BigNum.ZERO);
+        BigNum k = clickBase.max(BigNum.ZERO);
+        BigNum a = base.multiply(ARRIVAL_BONUS_SECONDS);
+        BigNum c = base.multiply(clickRate);
+        BigNum gap = a.subtract(c);
+        OptionalLong t = gap.signum() > 0 ? firstLevelAtLeast(gap, k, first, toInclusive) : OptionalLong.empty();
+        if (t.isEmpty()) {
+            // どの階層でも手掘り 1 回分のほうが多い
+            return clickSum(k, c, first, toInclusive);
         }
-        long t = firstLevelAtLeast(perLevel, min, first, toInclusive);
-        BigNum sum = BigNum.ZERO;
-        if (t > first) {
-            sum = sum.add(min.multiply(levelCount(first, t - 1)));
-        }
-        if (t <= toInclusive) {
-            sum = sum.add(perLevel.multiply(depthSeries(t, toInclusive)));
+        long start = t.getAsLong();
+        BigNum sum = a.multiply(depthSeries(start, toInclusive));
+        if (start > first) {
+            sum = sum.add(clickSum(k, c, first, start - 1));
         }
         return sum;
     }
 
-    /** first〜to の中で perLevel × 1.1^L ≥ min になる最初の L。どこも届かなければ to + 1。 */
-    private static long firstLevelAtLeast(BigNum perLevel, BigNum min, long first, long to) {
-        if (min.signum() <= 0 || perLevel.multiply(depthMultiplier(first)).isGreaterThanOrEqual(min)) {
-            return first;
+    /** Σ_{L=from..to} (k ＋ c × 1.1^L)。 */
+    private static BigNum clickSum(BigNum k, BigNum c, long from, long to) {
+        BigNum sum = k.multiply(levelCount(from, to));
+        if (c.signum() > 0) {
+            sum = sum.add(c.multiply(depthSeries(from, to)));
         }
-        if (!perLevel.multiply(depthMultiplier(to)).isGreaterThanOrEqual(min)) {
-            return to + 1;
+        return sum;
+    }
+
+    /** first〜to の中で gap × 1.1^L ≥ k になる最初の L。どこも届かなければ空。gap &gt; 0。 */
+    private static OptionalLong firstLevelAtLeast(BigNum gap, BigNum k, long first, long to) {
+        if (k.signum() <= 0 || gap.multiply(depthMultiplier(first)).isGreaterThanOrEqual(k)) {
+            return OptionalLong.of(first);
         }
-        // 1.1^L ≥ min ÷ perLevel ⇔ L ≥ log10(min ÷ perLevel) ÷ log10(1.1)
-        double estimate = Math.ceil(min.divide(perLevel).log10() / LOG10_DEPTH_DOUBLE);
+        if (!gap.multiply(depthMultiplier(to)).isGreaterThanOrEqual(k)) {
+            return OptionalLong.empty();
+        }
+        // 1.1^L ≥ k ÷ gap ⇔ L ≥ log10(k ÷ gap) ÷ log10(1.1)
+        double estimate = Math.ceil(k.divide(gap).log10() / LOG10_DEPTH_DOUBLE);
         long t = (long) Math.clamp(estimate, first, to);
-        while (t > first && perLevel.multiply(depthMultiplier(t - 1)).isGreaterThanOrEqual(min)) {
+        while (t > first && gap.multiply(depthMultiplier(t - 1)).isGreaterThanOrEqual(k)) {
             t--;
         }
-        while (t < to && !perLevel.multiply(depthMultiplier(t)).isGreaterThanOrEqual(min)) {
+        while (t < to && !gap.multiply(depthMultiplier(t)).isGreaterThanOrEqual(k)) {
             t++;
         }
-        return t;
+        return OptionalLong.of(t);
     }
 
     /** Σ_{L=from..to} 1.1^L ＝ 1.1^from × (1.1^(to − from + 1) − 1) ÷ 0.1。 */
@@ -353,9 +380,10 @@ public final class Formulas {
         return depthMultiplier(from).multiply(growth.subtract(BigNum.ONE)).divide(DEPTH_BASE - 1);
     }
 
-    /** from〜to の階層の数（long に収まらなくてもよい）。 */
+    /** from〜to の階層の数。long に収まらなくても、端が Long.MAX_VALUE 近くでも正確に数える。 */
     private static BigNum levelCount(long from, long to) {
-        return BigNum.of((double) to - (double) from + 1);
+        BigInteger n = BigInteger.valueOf(to).subtract(BigInteger.valueOf(from)).add(BigInteger.ONE);
+        return BigNum.of(n.doubleValue());
     }
 
     // ---- 累乗 ----

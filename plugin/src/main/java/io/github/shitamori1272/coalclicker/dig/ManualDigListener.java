@@ -1,5 +1,6 @@
 package io.github.shitamori1272.coalclicker.dig;
 
+import io.github.shitamori1272.coalclicker.boost.BoostService;
 import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.mine.MineService;
@@ -39,7 +40,8 @@ import org.bukkit.util.RayTraceResult;
 /**
  * 手掘り（企画書 4-2）。自分の坑道の切羽（3 × 3）を 1 回叩くごとに手掘り 1 回分の石炭
  * （{@link io.github.shitamori1272.coalclicker.game.Formulas#clickCoal}）がもらえ、手掘りの回数が 1 増える
- * （ツルハシの改良の出現条件）。石炭は累計採掘量とサーバー全体にも足し、坑道はそのぶん進む。
+ * （ツルハシの改良の出現条件）。良質な炭層の倍率（{@link BoostService}）があれば掛ける。
+ * 石炭は累計採掘量とサーバー全体にも足し、坑道はそのぶん進む。
  *
  * <p>ヒビは見た目だけで、叩くたびに 1 段階進み 10 回で一周する（坑道の進み方には関係しない）。
  * 叩いたときは効果音と、切羽の手前に浮かぶ {@code +◯個}（{@link HitPopup}。アクションバーやタイトルとぶつからない）を出す。
@@ -72,6 +74,7 @@ public final class ManualDigListener implements Listener {
 
     private final DataStore dataStore;
     private final MineService mineService;
+    private final BoostService boosts;
     private final HitPopup popup;
     private final Map<UUID, Cracks> cracks = new HashMap<>();
     /** 最後に叩いたと数えた tick（1 tick に 1 回の上限）。 */
@@ -97,9 +100,10 @@ public final class ManualDigListener implements Listener {
         }
     }
 
-    public ManualDigListener(Plugin plugin, DataStore dataStore, MineService mineService) {
+    public ManualDigListener(Plugin plugin, DataStore dataStore, MineService mineService, BoostService boosts) {
         this.dataStore = dataStore;
         this.mineService = mineService;
+        this.boosts = boosts;
         this.popup = new HitPopup(plugin);
     }
 
@@ -168,7 +172,8 @@ public final class ManualDigListener implements Listener {
             return;
         }
         BlockData broken = block.getBlockData();
-        DigEngine.Change change = DigEngine.click(data, dataStore.server());
+        DigEngine.Change change = DigEngine.click(data, dataStore.server(), boosts.productionMultiplier(id),
+                boosts.clickMultiplier(id));
 
         Cracks state = cracks.computeIfAbsent(id, ignored -> new Cracks(section, MineLayout.faceX(meters)));
         state.stage = (state.stage + 1) % CRACK_STAGES;

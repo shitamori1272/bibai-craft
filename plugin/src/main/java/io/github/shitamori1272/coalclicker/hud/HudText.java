@@ -3,6 +3,7 @@ package io.github.shitamori1272.coalclicker.hud;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.game.Tool;
+import io.github.shitamori1272.coalclicker.game.Upgrade;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import io.github.shitamori1272.coalclicker.number.JapaneseFormat;
 import java.math.BigInteger;
@@ -10,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * アクションバーと {@code /coal} に出す文字列を作る（企画書 7 章）。Bukkit に依存しない。
@@ -39,8 +41,8 @@ public final class HudText {
      */
     public static String actionBar(PlayerData data, boolean awaitingCage) {
         long level = Formulas.levelOf(data.totalMined());
-        return "石炭 " + JapaneseFormat.format(data.coal()) + "個"
-                + " ｜ 毎秒 " + JapaneseFormat.format(Formulas.coalPerSecond(data)) + "個"
+        return "石炭 " + coal(data.coal())
+                + " ｜ 毎秒 " + coal(Formulas.coalPerSecond(data.tools(), data.upgrades(), level))
                 + " ｜ " + tunnelName(level) + " 深さ" + depth(level) + "m "
                 + progressText(level, Formulas.progressOf(data.totalMined()))
                 + (awaitingCage ? CAGE_HINT : "");
@@ -50,23 +52,58 @@ public final class HudText {
     public record Entry(String label, String value) {
     }
 
-    /** {@code /coal} で表示する自分の記録。TODO(#62): 表示の作り直し。 */
+    /**
+     * {@code /coal} で表示する自分の記録（企画書 4 章・7 章）。
+     *
+     * <p>並びは、今の石炭・累計採掘量・毎秒の石炭・手掘り 1 回・手掘りの回数・今の坑道・最深の坑道、
+     * 道具 8 種（所持数とその道具の毎秒の石炭）、改良（買った数 / 全部の数）。
+     * 最深の坑道は「到達ボーナス済みの最深」と「今の階層」の深いほう（ランキングの到達深さと同じ）。
+     */
     public static List<Entry> record(PlayerData data) {
         Map<String, Long> tools = data.tools();
-        long level = Formulas.levelOf(data.totalMined());
+        Set<String> upgrades = data.upgrades();
+        BigNum totalMined = data.totalMined();
+        long level = Formulas.levelOf(totalMined);
+        BigNum perSecond = Formulas.coalPerSecond(tools, upgrades, level);
         List<Entry> lines = new ArrayList<>();
-        lines.add(new Entry("現在の石炭", JapaneseFormat.format(data.coal()) + "個"));
-        lines.add(new Entry("累計採掘量", JapaneseFormat.format(data.totalMined()) + "個"));
-        lines.add(new Entry("毎秒の石炭", JapaneseFormat.format(Formulas.coalPerSecond(data)) + "個"));
-        lines.add(new Entry("手掘り 1 回", JapaneseFormat.format(Formulas.clickCoal(data)) + "個"));
+        lines.add(new Entry("現在の石炭", coal(data.coal())));
+        lines.add(new Entry("累計採掘量", coal(totalMined)));
+        lines.add(new Entry("毎秒の石炭", coal(perSecond)));
+        lines.add(new Entry("手掘り 1 回", coal(Formulas.clickCoal(upgrades, perSecond))));
+        lines.add(new Entry("手掘りの回数", String.format(Locale.ROOT, "%,d回", data.clicks())));
         lines.add(new Entry("今の坑道", tunnelName(level) + "・深さ" + depth(level) + "m・"
-                + progressText(level, Formulas.progressOf(data.totalMined()))));
-        lines.add(new Entry("最深の坑道", tunnelName(data.mine().maxReachedLevel())));
+                + progressText(level, Formulas.progressOf(totalMined))
+                + "・次の坑道まであと" + coal(untilNextLevel(totalMined, level))));
+        long deepest = Math.max(data.mine().maxReachedLevel(), level);
+        lines.add(new Entry("最深の坑道", tunnelName(deepest) + "（深さ" + depth(deepest) + "m）"));
         for (Tool tool : Tool.values()) {
-            lines.add(new Entry(tool.displayName(), String.format(Locale.ROOT, "%,d個", Formulas.count(tools, tool))));
+            lines.add(new Entry(tool.displayName(),
+                    String.format(Locale.ROOT, "%,d個", Formulas.count(tools, tool))
+                            + "（毎秒 " + coal(Formulas.toolCoalPerSecond(tool, tools, upgrades, level)) + "）"));
         }
-        lines.add(new Entry("改良", String.format(Locale.ROOT, "%,d個", data.upgrades().size())));
+        lines.add(new Entry("改良", upgradeCount(upgrades) + "/" + Upgrade.values().size()));
         return lines;
+    }
+
+    /** 次の坑道に進むまでに掘る残りの石炭 ＝ 今の階層を掘り切るまでの累計 − 累計採掘量（0 未満にはしない）。 */
+    static BigNum untilNextLevel(BigNum totalMined, long level) {
+        BigNum rest = Formulas.cumulativeToFinish(level).subtract(totalMined);
+        return rest.signum() > 0 ? rest : BigNum.ZERO;
+    }
+
+    /** 買った改良のうち、知っている ID の数。 */
+    private static int upgradeCount(Set<String> upgrades) {
+        int n = 0;
+        for (Upgrade upgrade : Upgrade.values()) {
+            if (upgrades.contains(upgrade.id())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private static String coal(BigNum value) {
+        return JapaneseFormat.format(value) + "個";
     }
 
     /** 例: 階層 1 → {@code 第2坑道}。 */
