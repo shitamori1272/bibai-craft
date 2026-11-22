@@ -47,14 +47,17 @@ fi
 
 tmp=$(mktemp -d "$data/.setup.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
+# Paper のビルドを更新するときは build と sha256 を両方書き換える。
+# 一覧: https://fill.papermc.io/v3/projects/paper/versions/26.3/builds
 version=26.3
-sha1=33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c
-jar="minecraft_server.$version.jar"
-if [[ ! -f "$jar" ]]; then
-  print "Minecraft Java Edition $version を取得しています…"
+build=257
+sha256=64a5bd44910cb982b2648e9a35036cc95a6de4d561e15812aecf5411f84f7b01
+jar="paper-$version.jar"
+if ! print -r -- "$sha256  $jar" | shasum -a 256 -c - >/dev/null 2>&1; then
+  print "Paper $version (build $build) を取得しています…"
   curl --fail --silent --show-error --location --retry 2 --connect-timeout 10 \
-    "https://piston-data.mojang.com/v1/objects/$sha1/server.jar" -o "$tmp/server.jar"
-  (cd "$tmp" && print -r -- "$sha1  server.jar" | shasum -a 1 -c -)
+    "https://fill-data.papermc.io/v1/objects/$sha256/paper-$version-$build.jar" -o "$tmp/server.jar"
+  (cd "$tmp" && print -r -- "$sha256  server.jar" | shasum -a 256 -c -)
   mv "$tmp/server.jar" "$jar"
 fi
 
@@ -64,6 +67,6 @@ mv "$tmp/server.properties" server.properties
 rm -rf "$tmp"
 trap - EXIT
 
-print "Java Edition $version | 接続先 $lan_ip:25565"
+print "Paper $version (build $build) | 接続先 $lan_ip:25565"
 print 'ログに Done が出たら参加できます。終了するには stop を入力してください。'
 exec "$java_bin" "$root/server/World.java" "$mode"

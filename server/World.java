@@ -10,7 +10,9 @@ class World {
     static final Path data = Path.of("").toAbsolutePath();
     static final Path template = data.resolve("../maps/bibai").normalize();
     static final Set<String> personal = Set.of("players", "playerdata", "advancements", "stats",
-            "session.lock", "level.dat_old", ".DS_Store");
+            "session.lock", "level.dat_old", ".DS_Store",
+            // Paper が書き込むワールド固有の ID。コピーごとに別の ID になるよう原本には含めない。
+            "uid.dat");
 
     static void copyWorld(Path from, Path to) throws IOException {
         if (!Files.isRegularFile(from.resolve("level.dat")))
@@ -134,7 +136,7 @@ class World {
             System.out.println("使用ワールド: " + world.getFileName());
             String java = ProcessHandle.current().info().command().orElseThrow();
             var server = new ProcessBuilder(java, "-Xms512M", "-Xmx2G", "-jar",
-                    "minecraft_server.26.3.jar", "--world", world.getFileName().toString(), "nogui")
+                    "paper-26.3.jar", "--world", world.getFileName().toString(), "nogui")
                     .inheritIO().start();
             int status = server.waitFor();
             if (status != 0) throw new IOException("サーバーの終了コード: " + status);

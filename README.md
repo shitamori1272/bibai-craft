@@ -1,6 +1,6 @@
 # Bibai Craft
 
-美唄市をテーマにしたハッカソン用の Minecraft サーバーです。全員で **Java Edition 26.3** と公式のサーバーを使います。開発する人は自分の PC で起動でき、プレイに参加するだけなら会場のホスト 1 台で足ります。
+美唄市をテーマにしたハッカソン用の Minecraft サーバーです。全員で **Java Edition 26.3** を使い、サーバーはプラグインを読み込める [Paper](https://papermc.io/) 26.3 で動かします。開発する人は自分の PC で起動でき、プレイに参加するだけなら会場のホスト 1 台で足ります。
 
 ## 石炭クリッカー
 
@@ -17,12 +17,12 @@ cd bibai-craft
 
 ### macOS
 
-`./start.command` を実行します。Finder からダブルクリックしても起動できます。初回は運営者が [Minecraft EULA](https://www.minecraft.net/ja-jp/eula) を確認して同意すると、スクリプトが公式 JAR を取得します。接続先はターミナルに表示されます。
+`./start.command` を実行します。Finder からダブルクリックしても起動できます。初回は運営者が [Minecraft EULA](https://www.minecraft.net/ja-jp/eula) を確認して同意すると、スクリプトが Paper の JAR を取得します（チェックサムで検証します）。接続先はターミナルに表示されます。
 
 ### Windows・Linux
 
 1. リポジトリ内に `server-data` フォルダを作り、[server/server.properties](server/server.properties) をその中にコピーします。
-2. [Minecraft EULA](https://www.minecraft.net/ja-jp/eula) を確認し、[Mojang の 26.3 サーバー JAR](https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar) を同じフォルダに `minecraft_server.26.3.jar` という名前で保存します。
+2. [Minecraft EULA](https://www.minecraft.net/ja-jp/eula) を確認し、[Paper 26.3 build 257 の JAR](https://fill-data.papermc.io/v1/objects/64a5bd44910cb982b2648e9a35036cc95a6de4d561e15812aecf5411f84f7b01/paper-26.3-257.jar) を同じフォルダに `paper-26.3.jar` という名前で保存します。ダウンロードが壊れていないか、SHA-256 が `64a5bd44910cb982b2648e9a35036cc95a6de4d561e15812aecf5411f84f7b01` と一致することを確認してください（Windows は PowerShell で `Get-FileHash paper-26.3.jar`、Linux は `sha256sum paper-26.3.jar`）。
 3. PowerShell またはターミナルで以下を実行します。初回はサーバーが終了するので、同意する場合は生成された `eula.txt` の `eula=false` を `eula=true` に変更し、同じ `java` コマンドでもう一度起動します。
 
 ```sh
@@ -62,6 +62,10 @@ Gitで共有する初期マップは `maps/bibai/` です。通常起動では�
 2. ブロックをコードで配置する場合は `data/<名前空間>/function/` に `.mcfunction` を置きます。ゲーム内で建てたものは、ストラクチャーブロックで保存した `.nbt` を `data/<名前空間>/structure/` に置き、関数から `place template <名前空間>:<構造物名> X Y Z` で配置できます。床・空気を含め、書き込む範囲が他担当と重ならないように座標を決めてください。
 3. 作例の `load` → `prepare` → `wait_for_chunk` → `install` は、遠方のチャンクの読み込みを待ち、ワールドごとに1回だけ配置します。自分の区画に合わせて読み込み範囲・設置座標・状態の名前空間を変更します。試遊中の `/reload` では完成済みの櫓を再配置しません。
 4. 手元のパックを修正したら試遊を `stop` し、再び `preview` で初期状態から確認します。PRには自分のパックを含めます。ほかの人も同じブランチで `preview` すれば、ベースマップと差分を合わせた結果を確認できます。
+
+## プラグインを入れる
+
+ビルドしたプラグインの JAR を `server-data/plugins/` に置き、サーバーを起動し直すと読み込まれます。通常起動・試遊のどちらでも同じプラグインが使われます。Paper の設定ファイル（`bukkit.yml`・`spigot.yml`・`config/` など）も `server-data/` に作られ、Git の対象外です。
 
 ## LAN から参加する
 
