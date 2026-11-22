@@ -225,11 +225,13 @@ class FormulasTest {
 
     // ---- 到達ボーナス ----
 
-    /** Σ max(base × 1.1^L × 60, min) を 1 階層ずつ足す。 */
-    private static BigNum bruteForceBonus(long from, long to, BigNum base, BigNum min) {
+    /** Σ max(base × 1.1^L × 60, k ＋ rate × base × 1.1^L) を 1 階層ずつ足す。 */
+    private static BigNum bruteForceBonus(long from, long to, BigNum base, BigNum k, double rate) {
         BigNum sum = BigNum.ZERO;
         for (long level = from + 1; level <= to; level++) {
-            sum = sum.add(base.multiply(Formulas.depthMultiplier(level)).multiply(60).max(min));
+            BigNum perSecond = base.multiply(Formulas.depthMultiplier(level));
+            BigNum click = k.add(perSecond.multiply(rate));
+            sum = sum.add(perSecond.multiply(60).max(click));
         }
         return sum;
     }
@@ -237,37 +239,59 @@ class FormulasTest {
     @Test
     void 到達ボーナスは1階層ずつ足したものと同じ() {
         BigNum[] bases = {BigNum.ZERO, BigNum.of(0.01), BigNum.of(0.1), BigNum.of(1), BigNum.of(1e6)};
-        BigNum[] mins = {BigNum.ZERO, BigNum.of(10), BigNum.of(80), BigNum.of(1e9)};
+        BigNum[] clickBases = {BigNum.ZERO, BigNum.of(10), BigNum.of(80), BigNum.of(1e9)};
+        // 100 は 60 秒分より手掘りの上乗せが大きい（A ≤ c）場合
+        double[] rates = {0, 0.01, 0.05, 100};
         long[][] ranges = {{-1, 0}, {0, 1}, {0, 5}, {3, 40}, {-1, 120}, {50, 51}};
         for (BigNum base : bases) {
-            for (BigNum min : mins) {
-                for (long[] r : ranges) {
-                    BigNum expected = bruteForceBonus(r[0], r[1], base, min);
-                    BigNum actual = Formulas.arrivalBonus(r[0], r[1], base, min);
-                    assertClose(expected, actual, 1e-9);
+            for (BigNum k : clickBases) {
+                for (double rate : rates) {
+                    for (long[] r : ranges) {
+                        BigNum expected = bruteForceBonus(r[0], r[1], base, k, rate);
+                        BigNum actual = Formulas.arrivalBonus(r[0], r[1], base, k, rate);
+                        assertClose(expected, actual, 1e-9);
+                    }
                 }
             }
         }
     }
 
     @Test
-    void 到達ボーナスの最低保証() {
+    void 到達ボーナスの最低保証は手掘り1回分() {
         // 毎秒 0 でも 1 階層あたり手掘り 1 回分
-        assertClose(30, Formulas.arrivalBonus(0, 3, BigNum.ZERO, BigNum.of(10)));
+        assertClose(30, Formulas.arrivalBonus(0, 3, BigNum.ZERO, BigNum.of(10), 0));
         // 毎秒 1 なら 60 × 1.1 ＝ 66 個
-        assertClose(66, Formulas.arrivalBonus(0, 1, BigNum.ONE, BigNum.of(10)));
-        assertTrue(Formulas.arrivalBonus(5, 5, BigNum.ONE, BigNum.of(10)).isZero());
-        assertTrue(Formulas.arrivalBonus(5, 3, BigNum.ONE, BigNum.of(10)).isZero());
-        assertThrows(IllegalArgumentException.class, () -> Formulas.arrivalBonus(-2, 3, BigNum.ONE, BigNum.ONE));
+        assertClose(66, Formulas.arrivalBonus(0, 1, BigNum.ONE, BigNum.of(10), 0));
+        // 毎秒 1 で手掘り 100 ＋ 毎秒 × 0.05：100 ＋ 0.05 × 1.1 ＝ 100.055 個
+        assertClose(100.055, Formulas.arrivalBonus(0, 1, BigNum.ONE, BigNum.of(100), 0.05));
+        // 改良から決める版：ツルハシ 1 つ・熟練 2 つ → 20 ＋ 毎秒 × 0.02
+        Set<String> upgrades = Set.of("pickaxe_1", "skill_1", "skill_2");
+        assertClose(bruteForceBonus(2, 30, BigNum.of(0.05), BigNum.of(20), 0.02),
+                Formulas.arrivalBonus(2, 30, BigNum.of(0.05), upgrades), 1e-9);
+        assertTrue(Formulas.arrivalBonus(5, 5, BigNum.ONE, BigNum.of(10), 0).isZero());
+        assertTrue(Formulas.arrivalBonus(5, 3, BigNum.ONE, BigNum.of(10), 0).isZero());
+        assertThrows(IllegalArgumentException.class, () -> Formulas.arrivalBonus(-2, 3, BigNum.ONE, BigNum.ONE, 0));
+        assertThrows(IllegalArgumentException.class, () -> Formulas.arrivalBonus(0, 3, BigNum.ONE, BigNum.ONE, -1));
+    }
+
+    @Test
+    void 到達ボーナスはLong_MAX_VALUE近くでも数え間違えない() {
+        long max = Long.MAX_VALUE;
+        // 毎秒 0：手掘り 1 回分 × 11 階層
+        assertClose(11, Formulas.arrivalBonus(max - 11, max, BigNum.ZERO, BigNum.ONE, 0));
+        assertClose(1, Formulas.arrivalBonus(max - 1, max, BigNum.ZERO, BigNum.ONE, 0));
+        // 毎秒がとても小さく、Long.MAX_VALUE の階層でも 60 秒分が手掘り 1 回分に届かない
+        BigNum tiny = BigNum.of(1, -4_000_000_000_000_000_000L);
+        assertClose(BigNum.of(3e9), Formulas.arrivalBonus(max - 3, max, tiny, BigNum.of(1e9), 0), 1e-9);
     }
 
     @Test
     void 到達ボーナスは何百万階層でも一度に計算できる() {
-        BigNum bonus = Formulas.arrivalBonus(0, 10_000_000, BigNum.of(5), BigNum.of(10));
+        BigNum bonus = Formulas.arrivalBonus(0, 10_000_000, BigNum.of(5), BigNum.of(10), 0);
         // ほぼ最後の項 × 1.1 ÷ 0.1 ＝ 5 × 60 × 1.1^(10^7) × 11
         double expectedLog = Math.log10(5 * 60 * 11) + 1e7 * Math.log10(1.1);
         assertEquals(expectedLog, bonus.log10(), 1e-6);
-        assertTrue(Formulas.arrivalBonus(-1, Long.MAX_VALUE, BigNum.ONE, BigNum.ONE).signum() > 0);
-        assertTrue(Formulas.arrivalBonus(-1, Long.MAX_VALUE, BigNum.ZERO, BigNum.ONE).signum() > 0);
+        assertTrue(Formulas.arrivalBonus(-1, Long.MAX_VALUE, BigNum.ONE, BigNum.ONE, 0.05).signum() > 0);
+        assertTrue(Formulas.arrivalBonus(-1, Long.MAX_VALUE, BigNum.ZERO, BigNum.ONE, 0).signum() > 0);
     }
 }

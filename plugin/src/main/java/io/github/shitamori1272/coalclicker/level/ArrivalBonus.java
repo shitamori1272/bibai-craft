@@ -13,7 +13,7 @@ import java.util.Optional;
  * <p>{@code maxReachedLevel} は「すでにボーナスをもらった（または最初からいる）最深の階層」。
  * 初期値 0 は第 1 坑道に着いた扱いなので、第 1 坑道のボーナスはない。
  * 今の階層（累計採掘量から決まる数値上の階層）がそれより深ければ、間の階層ぶんを {@link Formulas#arrivalBonus} でまとめて渡す。
- * 1 階層あたり ＝ その階層での毎秒の石炭 × 60 秒分（最低保証は手掘り 1 回分の基本 {@link Formulas#clickBase}）。
+ * 1 階層あたり ＝ その階層での毎秒の石炭 × 60 秒分（最低保証はその階層での手掘り 1 回分）。
  *
  * <p>ボーナスは累計採掘量に含めるが、それで階層が進んでも、その階層のボーナスは次に着いたときに渡す。
  * TODO(#60): ケージで降りた階層（見た目の階層）と合わせるかを見直す。
@@ -50,7 +50,7 @@ public final class ArrivalBonus {
             return Optional.empty();
         }
         BigNum coal = Formulas.arrivalBonus(from, to, Formulas.coalPerSecond(data.tools(), data.upgrades(), 0),
-                Formulas.clickBase(data.upgrades()));
+                data.upgrades());
         if (coal.signum() > 0) {
             data.setCoal(data.coal().add(coal));
             data.setTotalMined(data.totalMined().add(coal));
