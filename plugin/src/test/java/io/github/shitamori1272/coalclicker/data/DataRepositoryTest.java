@@ -159,6 +159,61 @@ class DataRepositoryTest {
         assertEquals(BigNum.of(5), repository().loadPlayer(ID).coal());
     }
 
+    private void savePlayerWithSection(DataRepository repo, UUID uuid, int section) {
+        PlayerData data = new PlayerData(uuid);
+        data.mine().setSection(section);
+        assertTrue(repo.savePlayer(data));
+    }
+
+    @Test
+    void mine_ymlがなくても区画を二重に割り当てない() {
+        DataRepository repo = repository();
+        savePlayerWithSection(repo, ID, 3);
+        savePlayerWithSection(repo, UUID.randomUUID(), 7);
+        savePlayerWithSection(repo, UUID.randomUUID(), MineState.NO_SECTION);
+        ServerData server = repo.loadServer();
+        assertEquals(8, server.nextSection());
+        assertTrue(server.isDirty());
+        assertEquals(8, server.allocateSection());
+    }
+
+    @Test
+    void 壊れた_mine_ymlでも区画を二重に割り当てない() throws IOException {
+        DataRepository repo = repository();
+        savePlayerWithSection(repo, ID, 4);
+        Files.writeString(repo.serverFile(), "garbage");
+        assertEquals(5, repo.loadServer().nextSection());
+    }
+
+    @Test
+    void nextSectionが古くても使用中の区画を飛ばす() {
+        DataRepository repo = repository();
+        ServerData saved = new ServerData();
+        saved.setNextSection(2);
+        assertTrue(repo.saveServer(saved));
+        savePlayerWithSection(repo, ID, 5);
+        ServerData server = repo.loadServer();
+        assertEquals(6, server.allocateSection());
+    }
+
+    @Test
+    void allocateSectionは使用中の区画を返さない() {
+        ServerData server = new ServerData();
+        server.setNextSection(10);
+        server.reserveSection(3);
+        assertEquals(10, server.nextSection());
+        server.setNextSection(3);
+        server.reserveSection(4);
+        assertEquals(5, server.allocateSection());
+        server.setNextSection(0);
+        server.reserveSection(0);
+        server.reserveSection(1);
+        assertEquals(2, server.allocateSection());
+        // 手で戻されても、使用中（0〜5）は返さない
+        server.setNextSection(0);
+        assertEquals(6, server.allocateSection());
+    }
+
     @Test
     void 書き込みは置き換えになる() throws IOException {
         Path file = dir.resolve("sub").resolve("a.yml");

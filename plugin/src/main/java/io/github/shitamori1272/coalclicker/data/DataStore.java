@@ -79,7 +79,11 @@ public final class DataStore implements Listener {
     public PlayerData get(Player player) {
         UUID uuid = player.getUniqueId();
         pendingEvict.remove(uuid);
-        return cache.computeIfAbsent(uuid, repository::loadPlayer);
+        return cache.computeIfAbsent(uuid, id -> {
+            PlayerData data = repository.loadPlayer(id);
+            server.reserveSection(data.mine().section());
+            return data;
+        });
     }
 
     /** オンライン中のプレイヤーのデータ。オフラインのプレイヤーには {@link #loadOffline(UUID)} を使う。 */

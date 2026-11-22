@@ -61,9 +61,21 @@ final class DataRepository {
         }
     }
 
-    /** {@code mine.yml} を読む。ないか読めなければ初期値。 */
+    /**
+     * {@code mine.yml} を読む。ないか読めなければ初期値。
+     * どちらの場合も、保存済みのプレイヤーが使っている区画を記録し、次に割り当てる番号をそれより後ろにする。
+     */
     ServerData loadServer() {
-        return read(serverFile, DataCodec::decodeServer).orElseGet(ServerData::new);
+        ServerData server = read(serverFile, DataCodec::decodeServer).orElseGet(ServerData::new);
+        int before = server.nextSection();
+        for (UUID uuid : savedPlayerIds()) {
+            readPlayer(uuid).ifPresent(player -> server.reserveSection(player.mine().section()));
+        }
+        if (server.nextSection() != before) {
+            logger.warning("mine.yml の nextSection（" + before + "）がプレイヤーの区画と重なるため "
+                    + server.nextSection() + " に直しました");
+        }
+        return server;
     }
 
     /** プレイヤーのデータを読む。ないか読めなければ初期値。 */
