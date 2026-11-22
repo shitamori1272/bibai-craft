@@ -47,9 +47,15 @@ public final class ShopListener implements Listener {
         if (!(top.getHolder(false) instanceof ShopMenu menu)) {
             return;
         }
-        // 下の自分の持ち物でのクリック（Shift で送る・数字キー・まとめ拾いなど）も含めてすべて止める
+        // 下の自分の持ち物でのクリック（Shift で送る・数字キー・まとめ拾いなど）も、
+        // クリエイティブでのクリック（InventoryCreativeEvent も InventoryClickEvent の仲間）も含めてすべて止める
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != top) {
+            return;
+        }
+        if (menu.turnPage(event.getRawSlot())) {
+            player.playSound(player, Sound.ITEM_BOOK_PAGE_TURN, 1f, 1f);
+            menu.render(dataStore.get(player));
             return;
         }
         Optional<Upgrade> upgrade = menu.upgradeAt(event.getRawSlot());

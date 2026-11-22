@@ -7,7 +7,7 @@ import io.github.shitamori1272.coalclicker.game.Upgrade;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.Objects;
 
-/** 道具と改良の購入処理。Bukkit に依存しないので単体テストできる。TODO(#62): 改良の購入まわりを仕上げる。 */
+/** 道具と改良の購入処理。Bukkit に依存しないので単体テストできる。 */
 public final class Purchase {
 
     private Purchase() {
@@ -81,9 +81,12 @@ public final class Purchase {
 
     /** 今の石炭で買える個数（最大 {@code max} 個）。 */
     public static long affordableCount(PlayerData data, Tool tool, long max) {
-        long owned = data.getToolCount(tool.id());
-        BigNum coal = data.coal();
-        // 価格は個数に対して単調に増えるので二分探索で求める
+        return affordableCount(data.coal(), tool, data.getToolCount(tool.id()), max);
+    }
+
+    /** 石炭 {@code coal} で、所持数 {@code owned} から買える個数（最大 {@code max} 個）。 */
+    public static long affordableCount(BigNum coal, Tool tool, long owned, long max) {
+        // 合計価格（等比数列の和）は個数に対して単調に増えるので二分探索で求める
         long low = 0;
         long high = Math.max(0, max);
         while (low < high) {
