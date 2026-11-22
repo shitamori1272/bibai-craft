@@ -204,6 +204,10 @@ class DataCodecTest {
     @Test
     void 不正な値は例外になる() {
         assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("coal", "nope")));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("coal", "-1e3")));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("coal", -5)));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("totalMined", "-2.5e100")));
+        assertThrows(IllegalArgumentException.class, () -> DataCodec.decodeServer(Map.of("serverTotalMined", "-1")));
         assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("tools", Map.of("lamp", 1.5))));
         assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("tools", Map.of("lamp", -1))));
         assertThrows(IllegalArgumentException.class, () -> DataCodec.decodePlayer(ID, Map.of("tools", "lamp")));
