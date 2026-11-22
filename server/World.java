@@ -11,8 +11,8 @@ class World {
     static final Path template = data.resolve("../maps/bibai").normalize();
     static final Set<String> personal = Set.of("players", "playerdata", "advancements", "stats",
             "session.lock", "level.dat_old", ".DS_Store",
-            // Paper が書き込むワールド固有の ID と設定。原本には含めない。
-            "uid.dat", "paper-world.yml");
+            // Paper が書き込むワールド固有の ID。コピーごとに別の ID になるよう原本には含めない。
+            "uid.dat");
 
     static void copyWorld(Path from, Path to) throws IOException {
         if (!Files.isRegularFile(from.resolve("level.dat")))
@@ -55,14 +55,6 @@ class World {
                     }
                 }
             }
-        }
-    }
-
-    // Paper はネザーとエンドを <ワールド名>_nether / <ワールド名>_the_end に分けて保存する。
-    static void removeWorld(Path world) throws IOException {
-        for (String suffix : new String[] {"", "_nether", "_the_end"}) {
-            Path dir = world.resolveSibling(world.getFileName() + suffix);
-            if (Files.exists(dir)) removeTree(dir);
         }
     }
 
@@ -149,7 +141,7 @@ class World {
             int status = server.waitFor();
             if (status != 0) throw new IOException("サーバーの終了コード: " + status);
         } finally {
-            if (preview != null) removeWorld(preview);
+            if (preview != null) removeTree(preview);
         }
     }
 

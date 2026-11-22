@@ -18,7 +18,7 @@ cd bibai-craft
 ### Windows・Linux
 
 1. リポジトリ内に `server-data` フォルダを作り、[server/server.properties](server/server.properties) をその中にコピーします。
-2. [Minecraft EULA](https://www.minecraft.net/ja-jp/eula) を確認し、[Paper 26.3 build 257 の JAR](https://fill-data.papermc.io/v1/objects/64a5bd44910cb982b2648e9a35036cc95a6de4d561e15812aecf5411f84f7b01/paper-26.3-257.jar) を同じフォルダに `paper-26.3.jar` という名前で保存します。
+2. [Minecraft EULA](https://www.minecraft.net/ja-jp/eula) を確認し、[Paper 26.3 build 257 の JAR](https://fill-data.papermc.io/v1/objects/64a5bd44910cb982b2648e9a35036cc95a6de4d561e15812aecf5411f84f7b01/paper-26.3-257.jar) を同じフォルダに `paper-26.3.jar` という名前で保存します。ダウンロードが壊れていないか、SHA-256 が `64a5bd44910cb982b2648e9a35036cc95a6de4d561e15812aecf5411f84f7b01` と一致することを確認してください（Windows は PowerShell で `Get-FileHash paper-26.3.jar`、Linux は `sha256sum paper-26.3.jar`）。
 3. PowerShell またはターミナルで以下を実行します。初回はサーバーが終了するので、同意する場合は生成された `eula.txt` の `eula=false` を `eula=true` に変更し、同じ `java` コマンドでもう一度起動します。
 
 ```sh
@@ -62,8 +62,6 @@ Gitで共有する初期マップは `maps/bibai/` です。通常起動では�
 ## プラグインを入れる
 
 ビルドしたプラグインの JAR を `server-data/plugins/` に置き、サーバーを起動し直すと読み込まれます。通常起動・試遊のどちらでも同じプラグインが使われます。Paper の設定ファイル（`bukkit.yml`・`spigot.yml`・`config/` など）も `server-data/` に作られ、Git の対象外です。
-
-Paper はネザーとエンドを `bibai_nether`・`bibai_the_end` のように別フォルダへ保存します。原本（`maps/bibai/`）に反映されるのはオーバーワールドだけです。
 
 ## LAN から参加する
 
