@@ -22,8 +22,8 @@ public final class CoalClicker extends JavaPlugin {
     private final CoalCommand command = new CoalCommand();
     private MineWorld mineWorld;
     private DataStore dataStore;
-    private Shop shop;
     private MineService mineService;
+    private Shop shop;
     private Digging digging;
 
     @Override
@@ -55,11 +55,11 @@ public final class CoalClicker extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (digging != null) {
-            digging.close();
-        }
         if (shop != null) {
             shop.close();
+        }
+        if (digging != null) {
+            digging.close();
         }
         if (mineService != null) {
             mineService.shutdown();

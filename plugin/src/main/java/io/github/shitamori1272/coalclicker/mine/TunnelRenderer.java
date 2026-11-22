@@ -21,7 +21,6 @@ import org.bukkit.block.data.type.Light;
 import org.bukkit.block.data.type.WallSign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerTeleportEvent;
 
 /**
  * 1 人分の区画のブロックを置き直す係（企画書 5-3・5-4）。座標はすべて {@link MineLayout} の決まりに従う。
@@ -37,16 +36,12 @@ public final class TunnelRenderer {
         Material at(int x, int y, int z);
     }
 
-    /** 埋め直す範囲の、坑道の中心から Z 方向への幅（坑道の壁より外側まで）。 */
-    static final int REFILL_HALF_WIDTH = MineLayout.TUNNEL_HALF_WIDTH + 2;
-    /** 埋め直す範囲の下端（床の下まで）。 */
-    static final int REFILL_MIN_Y = MineLayout.FLOOR_Y - 2;
-    /** 埋め直す範囲の上端（天井の上まで）。 */
-    static final int REFILL_MAX_Y = MineLayout.CEILING_MAX_Y + 2;
-    /** 埋め直す範囲の西端（坑底の奥の壁まで）。 */
-    static final int REFILL_MIN_X = MineLayout.SHAFT_MIN_X - 1;
-    /** 埋め直す範囲の東端（ループの東端の先まで）。 */
-    static final int REFILL_MAX_X = MineLayout.WINDOW_MAX_X + 1;
+    /** プレイヤーをテレポートさせる手段。坑道ワールドへのテレポートの検査を通すため、呼ぶ側が渡す。 */
+    @FunctionalInterface
+    public interface Teleporter {
+        /** 移せたら true。 */
+        boolean teleport(Player player, Location to, TeleportFlag... flags);
+    }
 
     /** ケージ（坑底の奥）の X。右クリックで降りる処理（#22）はこの列を見る。 */
     public static final int CAGE_X = MineLayout.SHAFT_MIN_X;
@@ -68,9 +63,11 @@ public final class TunnelRenderer {
             data -> ((WallSign) data).setFacing(BlockFace.EAST));
 
     private final World world;
+    private final Teleporter teleporter;
 
-    public TunnelRenderer(World world) {
+    public TunnelRenderer(World world, Teleporter teleporter) {
         this.world = Objects.requireNonNull(world);
+        this.teleporter = Objects.requireNonNull(teleporter);
     }
 
     /**
@@ -89,9 +86,10 @@ public final class TunnelRenderer {
     public void rebuild(int section, long level, double meters) {
         Strata strata = strataFor(level);
         int centerZ = MineLayout.sectionZ(section);
-        for (int x = REFILL_MIN_X; x <= REFILL_MAX_X; x++) {
-            for (int z = centerZ - REFILL_HALF_WIDTH; z <= centerZ + REFILL_HALF_WIDTH; z++) {
-                for (int y = REFILL_MIN_Y; y <= REFILL_MAX_Y; y++) {
+        for (int x = SectionBounds.REFILL_MIN_X; x <= SectionBounds.REFILL_MAX_X; x++) {
+            for (int z = centerZ - SectionBounds.REFILL_HALF_WIDTH; z <= centerZ + SectionBounds.REFILL_HALF_WIDTH;
+                    z++) {
+                for (int y = SectionBounds.REFILL_MIN_Y; y <= SectionBounds.REFILL_MAX_Y; y++) {
                     set(world.getBlockAt(x, y, z), strata.at(x, y, z));
                 }
             }
@@ -122,12 +120,13 @@ public final class TunnelRenderer {
                 }
             }
             case REBUILD -> {
-                rebuild(section, level, newMeters);
+                // 先に手前へ移す（移した先の X < 64 は作り直しの前後とも掘ってある）
                 if (plan.shiftPlayers()) {
                     for (Player player : players) {
                         shiftBack(player);
                     }
                 }
+                rebuild(section, level, newMeters);
             }
         }
         return plan;
@@ -156,12 +155,10 @@ public final class TunnelRenderer {
                 -90f, 0f);
     }
 
-    /** location が区画 section の、今掘ってある範囲（坑底〜X = tunnelEndX）にあるか。 */
+    /** location に立つプレイヤーの当たり判定が、区画 section の今掘ってある範囲（坑底〜X = tunnelEndX）に収まるか。 */
     public boolean inOpenArea(int section, double meters, Location location) {
-        int x = location.getBlockX();
-        return location.getWorld().equals(world)
-                && x >= MineLayout.SHAFT_MIN_X && x <= MineLayout.tunnelEndX(meters)
-                && Math.abs(location.getBlockZ() - MineLayout.sectionZ(section)) <= MineLayout.TUNNEL_HALF_WIDTH;
+        return world.equals(location.getWorld())
+                && SectionBounds.inOpenArea(section, meters, location.getX(), location.getZ());
     }
 
     /** 坑底の乗り場（X = -8〜0）を掘り、ケージ・人車のレール・明かりを置く。 */
@@ -230,12 +227,11 @@ public final class TunnelRenderer {
         if (!location.getWorld().equals(world)) {
             return;
         }
-        int shift = TunnelPlan.shiftFor(location.getBlockX());
-        if (shift == 0) {
+        if (!SectionBounds.needsLoopShift(location.getX())) {
             return;
         }
         // 位置は絶対座標で指定し、速度だけ相対フラグで引き継ぐ（向きは今の値をそのまま渡す）
-        player.teleport(location.add(shift, 0, 0), PlayerTeleportEvent.TeleportCause.PLUGIN,
+        teleporter.teleport(player, location.add(-MineLayout.LOOP_METERS, 0, 0),
                 TeleportFlag.Relative.VELOCITY_X, TeleportFlag.Relative.VELOCITY_Y,
                 TeleportFlag.Relative.VELOCITY_Z, TeleportFlag.Relative.VELOCITY_ROTATION);
     }
