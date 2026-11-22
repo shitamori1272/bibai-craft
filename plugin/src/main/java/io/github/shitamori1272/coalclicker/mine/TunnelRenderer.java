@@ -1,6 +1,6 @@
 package io.github.shitamori1272.coalclicker.mine;
 
-import io.github.shitamori1272.coalclicker.world.MineChunkGenerator;
+import io.github.shitamori1272.coalclicker.world.LevelStrata;
 import io.github.shitamori1272.coalclicker.world.MineLayout;
 import io.papermc.paper.entity.TeleportFlag;
 import java.util.Collection;
@@ -71,12 +71,24 @@ public final class TunnelRenderer {
     }
 
     /**
-     * 階層 level の地層。階層ごとの地層（企画書 5-5、#23）はここを差し替える。
+     * 階層 level の地層（企画書 5-5）。岩の決め方は {@link LevelStrata} にある。
      *
-     * <p>ループ表示で巻き戻したことに気づかれないよう、X 方向には {@link MineLayout#LOOP_METERS} の周期にすること。
+     * <p>ループ表示で巻き戻したことに気づかれないよう、X 方向には {@link MineLayout#LOOP_METERS} の周期になっている。
      */
     public Strata strataFor(long level) {
-        return (x, y, z) -> MineChunkGenerator.material(MineLayout.stratumAt(y));
+        return (x, y, z) -> material(LevelStrata.at(level, x, y, z));
+    }
+
+    /** 岩の種類に対応するブロック。 */
+    static Material material(LevelStrata.Rock rock) {
+        return switch (rock) {
+            case STONE -> Material.STONE;
+            case COAL_ORE -> Material.COAL_ORE;
+            case SANDSTONE -> Material.SANDSTONE;
+            case TUFF -> Material.TUFF;
+            case DEEPSLATE -> Material.DEEPSLATE;
+            case DEEPSLATE_COAL_ORE -> Material.DEEPSLATE_COAL_ORE;
+        };
     }
 
     /**

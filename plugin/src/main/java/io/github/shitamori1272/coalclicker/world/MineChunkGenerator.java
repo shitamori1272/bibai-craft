@@ -66,7 +66,7 @@ public final class MineChunkGenerator extends ChunkGenerator {
                 maxX - baseX + 1, MineLayout.TUNNEL_MAX_Y + 1, maxZ - baseZ + 1, Material.AIR);
     }
 
-    /** 地層の種類に対応するブロック。坑道を埋め直すコードからも使う。 */
+    /** 地層の種類に対応するブロック（第 1〜3 坑道の地層。階層ごとの地層は LevelStrata）。 */
     public static Material material(MineLayout.Stratum stratum) {
         return switch (stratum) {
             case STONE -> Material.STONE;
