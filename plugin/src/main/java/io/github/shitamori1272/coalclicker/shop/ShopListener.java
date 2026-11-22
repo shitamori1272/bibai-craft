@@ -1,0 +1,103 @@
+package io.github.shitamori1272.coalclicker.shop;
+
+import io.github.shitamori1272.coalclicker.data.DataStore;
+import io.github.shitamori1272.coalclicker.data.PlayerData;
+import io.github.shitamori1272.coalclicker.game.Tool;
+import io.github.shitamori1272.coalclicker.number.JapaneseFormat;
+import java.util.Optional;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Sound;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.inventory.Inventory;
+
+/** ショップ画面のクリックを受け取って購入する。画面からアイテムは一切取り出させない。 */
+public final class ShopListener implements Listener {
+
+    private final DataStore dataStore;
+
+    public ShopListener(DataStore dataStore) {
+        this.dataStore = dataStore;
+    }
+
+    /** ショップ画面を開く。 */
+    public void open(Player player) {
+        ShopMenu menu = new ShopMenu();
+        menu.render(dataStore.get(player));
+        player.openInventory(menu.getInventory());
+    }
+
+    /** 開いているショップ画面があれば描き直す（石炭が増えたときなど用）。 */
+    public void refresh(Player player) {
+        if (player.getOpenInventory().getTopInventory().getHolder(false) instanceof ShopMenu menu) {
+            menu.render(dataStore.get(player));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOW)
+    public void onClick(InventoryClickEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder(false) instanceof ShopMenu menu)) {
+            return;
+        }
+        // 下の自分の持ち物でのクリック（Shift で送る・数字キー・まとめ拾いなど）も含めてすべて止める
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != top) {
+            return;
+        }
+        Optional<Tool> tool = menu.toolAt(event.getRawSlot());
+        if (tool.isEmpty()) {
+            return;
+        }
+        ClickType click = event.getClick();
+        if (click.isShiftClick()) {
+            buy(player, menu, tool.get(), true);
+        } else if (click == ClickType.LEFT || click == ClickType.RIGHT) {
+            buy(player, menu, tool.get(), false);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOW)
+    public void onDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder(false) instanceof ShopMenu) {
+            event.setCancelled(true);
+        }
+    }
+
+    private void buy(Player player, ShopMenu menu, Tool tool, boolean bulk) {
+        PlayerData data = dataStore.get(player);
+        long amount = 1;
+        if (bulk) {
+            amount = Math.max(1, Purchase.affordableCount(data, tool, ShopMenu.BULK_AMOUNT));
+        }
+        Purchase.Result result = Purchase.tryBuy(data, tool, amount);
+        if (result.success()) {
+            player.playSound(player, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.2f);
+            if (result.firstPurchase()) {
+                sendExplanation(player, tool);
+            }
+        } else {
+            player.playSound(player, Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+            player.sendMessage(Component.text("石炭が足りません（あと " + JapaneseFormat.format(result.shortage())
+                    + " 個）", NamedTextColor.RED));
+        }
+        menu.render(data);
+    }
+
+    /** はじめて買った道具の詳しい解説をチャットに出す。 */
+    static void sendExplanation(Player player, Tool tool) {
+        player.sendMessage(Component.empty());
+        player.sendMessage(Component.text("━━ ", NamedTextColor.DARK_GRAY)
+                .append(Component.text("道具の解説：" + tool.displayName(), NamedTextColor.GOLD))
+                .append(Component.text(" ━━", NamedTextColor.DARK_GRAY)));
+        player.sendMessage(Component.text(tool.explanation(), NamedTextColor.WHITE));
+        player.sendMessage(Component.text("効果：" + tool.effectDescription(), NamedTextColor.GREEN));
+        player.sendMessage(Component.empty());
+    }
+}
