@@ -7,7 +7,9 @@
 - JDK 25 以降（macOS なら `brew install openjdk`）
 - Gradle は同梱の Gradle Wrapper（`./gradlew`）を使うので、別途インストールは不要です
 
-Homebrew の JDK を使う場合は、先に `export JAVA_HOME=/opt/homebrew/opt/openjdk` を実行します。
+Homebrew の JDK を使う場合は、先に `export JAVA_HOME="$(brew --prefix openjdk)"` を実行します。
+
+Windows では、以下の `./gradlew` を `gradlew.bat` に読み替えてください（例：`gradlew.bat build`、`gradlew.bat runServer`）。
 
 ## ビルド
 
@@ -33,6 +35,6 @@ cd plugin
 
 | パス | 内容 |
 |---|---|
-| `build.gradle.kts` | 依存（`paper-api`）とビルド設定。Paper のビルド番号はサーバーの `start.command` と合わせる |
+| `build.gradle.kts` | 依存（`paper-api`）とビルド設定。`minecraftVersion` と `paperBuild` は、サーバーの `start.command` の `version` と `build` に合わせる |
 | `src/main/resources/paper-plugin.yml` | プラグインの定義 |
 | `src/main/java/io/github/shitamori1272/coalclicker/` | ソースコード |
