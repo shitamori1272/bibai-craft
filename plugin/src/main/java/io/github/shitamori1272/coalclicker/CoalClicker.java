@@ -4,6 +4,7 @@ import io.github.shitamori1272.coalclicker.admin.GiveCommand;
 import io.github.shitamori1272.coalclicker.admin.ResetCommand;
 import io.github.shitamori1272.coalclicker.command.CoalCommand;
 import io.github.shitamori1272.coalclicker.data.DataStore;
+import io.github.shitamori1272.coalclicker.dig.Digging;
 import io.github.shitamori1272.coalclicker.hud.ActionBarTask;
 import io.github.shitamori1272.coalclicker.hud.StatusCommand;
 import io.github.shitamori1272.coalclicker.mine.MineCommand;
@@ -27,6 +28,7 @@ public final class CoalClicker extends JavaPlugin {
     private MineService mineService;
     private Shop shop;
     private Sidebar sidebar;
+    private Digging digging;
 
     @Override
     public void onEnable() {
@@ -40,6 +42,7 @@ public final class CoalClicker extends JavaPlugin {
         command.register(new SurfaceCommand(mineService));
         // サブコマンドは各機能がここで command.register(...) する
         shop = Shop.register(this);
+        digging = Digging.register(this);
         ActionBarTask.start(this, dataStore);
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
@@ -63,6 +66,9 @@ public final class CoalClicker extends JavaPlugin {
         }
         if (shop != null) {
             shop.close();
+        }
+        if (digging != null) {
+            digging.close();
         }
         if (mineService != null) {
             mineService.shutdown();

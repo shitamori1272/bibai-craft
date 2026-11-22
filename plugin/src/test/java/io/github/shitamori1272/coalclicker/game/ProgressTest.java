@@ -188,4 +188,86 @@ class ProgressTest {
         assertThrows(IllegalArgumentException.class,
                 () -> Progress.advance(0, 0, BigNum.ONE, E100, Double.POSITIVE_INFINITY));
     }
+
+    // ---- 長さで進める（手掘り） ----
+
+    @Test
+    void 長さで進めると割合が増え石炭は掘った分() {
+        Progress.Result r = Progress.advanceMeters(0, 0.5, 1, E100);
+        assertEquals(0, r.level());
+        assertEquals(0.5 + 1.0 / 64, r.progress(), 1e-12);
+        assertEquals(1, r.meters(), 1e-12);
+        assertEquals(0, r.levelsCompleted());
+        assertClose(100, r.coal());
+    }
+
+    @Test
+    void 長さで進めて掘り切ったら次の階層を0mから() {
+        Progress.Result r = Progress.advanceMeters(1, 79.5 / 80, 1, E100);
+        assertEquals(2, r.level());
+        assertEquals(0, r.progress());
+        assertEquals(1, r.levelsCompleted());
+        assertEquals(0.5, r.meters(), 1e-9);
+        assertClose(50, r.coal());
+    }
+
+    @Test
+    void 長さで進めてちょうど掘り切る() {
+        Progress.Result r = Progress.advanceMeters(0, 63.0 / 64, 1, E100);
+        assertEquals(1, r.level());
+        assertEquals(0, r.progress());
+        assertClose(100, r.coal());
+    }
+
+    @Test
+    void 長さ0なら進まない() {
+        Progress.Result r = Progress.advanceMeters(0, 0.25, 0, E100);
+        assertEquals(0.25, r.progress());
+        assertTrue(r.coal().isZero());
+    }
+
+    @Test
+    void 長さで進めるとき掘り切ったまま残っていたら先に次の階層へ() {
+        Progress.Result r = Progress.advanceMeters(0, 1, 1, E100);
+        assertEquals(1, r.level());
+        assertEquals(1, r.levelsCompleted());
+        assertEquals(1.0 / 80, r.progress(), 1e-12);
+    }
+
+    @Test
+    void とても深い階層でも長さで進めると止まらない() {
+        Progress.Result r = Progress.advanceMeters(Long.MAX_VALUE / 32, 0.5, 1, E100);
+        assertEquals(Long.MAX_VALUE / 32, r.level());
+        assertTrue(r.progress() > 0.5);
+        assertEquals(1, r.meters());
+        assertClose(100, r.coal());
+    }
+
+    @Test
+    void とても深い階層で1の直前から進めても渡した長さ分しかもらえない() {
+        // 残りは割合の最小単位 × 長さで何千 m にもなるが、1m 分の石炭だけで次の階層へ進む
+        long level = Long.MAX_VALUE / 32;
+        Progress.Result r = Progress.advanceMeters(level, Math.nextDown(1.0), 1, E100);
+        assertEquals(level + 1, r.level());
+        assertEquals(0, r.progress());
+        assertEquals(1, r.meters());
+        assertClose(100, r.coal());
+    }
+
+    @Test
+    void 最後の階層は長さで進めても掘り切れない() {
+        Progress.Result r = Progress.advanceMeters(Long.MAX_VALUE, Math.nextDown(1.0), 1, E100);
+        assertEquals(Long.MAX_VALUE, r.level());
+        assertEquals(Math.nextDown(1.0), r.progress());
+        assertEquals(0, r.levelsCompleted());
+        assertEquals(1, r.meters());
+        assertClose(100, r.coal());
+    }
+
+    @Test
+    void 長さで進めるときの不正な入力() {
+        assertThrows(IllegalArgumentException.class, () -> Progress.advanceMeters(0, 0, -1, E100));
+        assertThrows(IllegalArgumentException.class, () -> Progress.advanceMeters(-1, 0, 1, E100));
+        assertThrows(IllegalArgumentException.class, () -> Progress.advanceMeters(0, Double.NaN, 1, E100));
+    }
 }
