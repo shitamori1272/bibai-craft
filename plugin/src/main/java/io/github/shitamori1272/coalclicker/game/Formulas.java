@@ -33,8 +33,11 @@ public final class Formulas {
     public static final double PICKAXE_FACTOR = 2;
     /** 熟練の改良 1 つで、手掘りに上乗せする毎秒の石炭の割合。 */
     public static final double SKILL_RATE = 0.01;
-    /** 第 1 坑道（階層 0）を掘り切るのに必要な累計採掘量。階層ごとに 2 倍。 */
-    public static final double BASE_LEVEL_REQUIREMENT = 1_000;
+    /**
+     * 第 1 坑道（階層 0）を掘り切るのに必要な累計採掘量。階層ごとに 2 倍。
+     * 第 1 坑道は 64m なので、初期の手掘り（10個）では 10 回で約 1m 進む。
+     */
+    public static final double BASE_LEVEL_REQUIREMENT = 6_400;
     /** 第 1 坑道の長さ（m）。 */
     public static final double BASE_TUNNEL_LENGTH = 64;
     /** 1 階層ごとに伸びる坑道の長さ（m）。 */
@@ -42,7 +45,7 @@ public final class Formulas {
     /** 到達ボーナスで何秒分の石炭を渡すか。 */
     public static final double ARRIVAL_BONUS_SECONDS = 60;
 
-    /** 1000 × (2^(n+1) − 1) を double で正確に計算できる最大の n（1000 = 2^3 × 125 で、125 は 7 ビット）。 */
+    /** 6400 × (2^(n+1) − 1) を double で正確に計算できる最大の n（保守的な上限）。 */
     private static final int EXACT_CUMULATIVE_MAX_LEVEL = 45;
     /** これより大きい指数（10 の何乗か）は double に収まらないとみなして高い精度の対数で作る。 */
     private static final double DOUBLE_LOG10_LIMIT = 300;
@@ -205,7 +208,7 @@ public final class Formulas {
 
     // ---- 累計採掘量による坑道 ----
 
-    /** 階層 n（0 始まり）を掘り切るのに必要な量 ＝ 1,000 × 2^n。 */
+    /** 階層 n（0 始まり）を掘り切るのに必要な量 ＝ 6,400 × 2^n。 */
     public static BigNum levelRequirement(long level) {
         requireNonNegative(level, "階層番号");
         if (level <= EXACT_CUMULATIVE_MAX_LEVEL) {
@@ -215,8 +218,8 @@ public final class Formulas {
     }
 
     /**
-     * 階層 n（0 始まり）を掘り切るまでの累計 ＝ 1,000 × (2^(n+1) − 1)。n = −1 なら 0。
-     * n ≤ 45 では double で正確に計算するので、{@code BigNum.of(1000 × (2^(n+1) − 1))} とちょうど等しい。
+     * 階層 n（0 始まり）を掘り切るまでの累計 ＝ 6,400 × (2^(n+1) − 1)。n = −1 なら 0。
+     * n ≤ 45 では double で正確に計算するので、{@code BigNum.of(6400 × (2^(n+1) − 1))} とちょうど等しい。
      */
     public static BigNum cumulativeToFinish(long level) {
         if (level < -1) {
@@ -234,7 +237,7 @@ public final class Formulas {
 
     /**
      * 累計採掘量から決まる、数値上の階層（0 始まり）。
-     * cumulativeToFinish(n − 1) ≤ 累計 &lt; cumulativeToFinish(n) となる n ＝ floor(log2(累計 ÷ 1,000 ＋ 1))。
+     * cumulativeToFinish(n − 1) ≤ 累計 &lt; cumulativeToFinish(n) となる n ＝ floor(log2(累計 ÷ 6,400 ＋ 1))。
      *
      * <p>log2 を高い精度で見積もってから {@link #cumulativeToFinish} と比べて補正するので、境目ちょうどでも
      * {@link #cumulativeToFinish} と食い違わない。どんなに大きな累計でも計算でき、{@link Long#MAX_VALUE} で頭打ちにする。

@@ -67,7 +67,7 @@ class DigEngineTest {
     @Test
     void 境目を越えたら途中から深さ倍率が上がる() {
         PlayerData data = player();
-        data.setTotalMined(BigNum.of(990));
+        data.setTotalMined(BigNum.of(6_390));
         data.setToolCount(Tool.LAMP.id(), 20); // 階層 0 で毎秒 20、階層 1 で 22
         DigEngine.Change change = DigEngine.autoTick(data, new ServerData(), 1);
         assertEquals(0, change.oldLevel());
@@ -79,11 +79,11 @@ class DigEngineTest {
 
     @Test
     void 何階層ぶんもまとめて足すと小刻みのシミュレーションと一致する() {
-        // 毎秒 10 個で 1 時間：階層 0 から 5 階層ほど進む
+        // 毎秒 10 個で 1 時間：複数の階層を進む
         double base = 10;
         BigNum closed = DigEngine.autoCoal(BigNum.of(base), BigNum.ZERO, 3600);
         assertRelative(bruteForce(base, 0, 3600, 0.01), closed, 1e-4);
-        assertTrue(Formulas.levelOf(closed) >= 5);
+        assertTrue(Formulas.levelOf(closed) >= 2);
 
         // 途中の進み具合から、8 時間ぶん
         assertRelative(bruteForce(3.7, 12_345, 8 * 3600, 0.05),
@@ -156,7 +156,7 @@ class DigEngineTest {
     @Test
     void 手掘りで境目を越えると階層が進む() {
         PlayerData data = player();
-        data.setTotalMined(BigNum.of(995));
+        data.setTotalMined(BigNum.of(6_395));
         DigEngine.Change change = DigEngine.click(data, new ServerData());
         assertEquals(1, change.levelsAdvanced());
     }

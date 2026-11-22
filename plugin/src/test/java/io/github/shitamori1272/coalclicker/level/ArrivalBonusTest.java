@@ -86,7 +86,7 @@ class ArrivalBonusTest {
     @Test
     void 道具がなくても手掘り1回分は保証される() {
         PlayerData data = new PlayerData(UUID.randomUUID());
-        data.setTotalMined(BigNum.of(3_000)); // 階層 2
+        data.setTotalMined(Formulas.cumulativeToFinish(1)); // 階層 2
         data.addUpgrade("pickaxe_1");
         ArrivalBonus.Result result = ArrivalBonus.claim(data, new ServerData(), 2).orElseThrow();
         assertClose(2 * 20, result.coal());

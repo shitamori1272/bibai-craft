@@ -81,9 +81,9 @@ class RankingTest {
     void 到達深さは最深と今の階層の深いほう() {
         PlayerData a = new PlayerData(id(1));
         a.mine().setMaxReachedLevel(5);
-        a.setTotalMined(BigNum.of(3_000)); // 階層 2
+        a.setTotalMined(BigNum.of(19_200)); // 階層 2
         PlayerData b = new PlayerData(id(2));
-        b.setTotalMined(BigNum.of(127_000)); // 階層 7
+        b.setTotalMined(Formulas.cumulativeToFinish(6)); // 階層 7
         PlayerStats sa = PlayerStats.from(a, "a");
         PlayerStats sb = PlayerStats.from(b, "b");
         assertEquals(5, sa.deepestLevel());
@@ -96,14 +96,14 @@ class RankingTest {
     @Test
     void 保存データから毎秒の石炭と累計採掘量を抜き出す() {
         PlayerData d = new PlayerData(id(1));
-        d.setTotalMined(BigNum.of(1_000)); // 階層 1 → ×1.1
+        d.setTotalMined(BigNum.of(6_400)); // 階層 1 → ×1.1
         d.setToolCount("lamp", 10);
         d.addUpgrade("lamp_1"); // 安全灯 ×2
         PlayerStats stats = PlayerStats.from(d, "a");
         assertEquals(Formulas.coalPerSecond(d), stats.coalPerSecond());
         assertEquals("毎秒 22個", Category.RATE.format(stats));
-        assertEquals(BigNum.of(1_000), stats.totalMined());
-        assertEquals("1,000個", Category.MINED.format(stats));
+        assertEquals(BigNum.of(6_400), stats.totalMined());
+        assertEquals("6,400個", Category.MINED.format(stats));
     }
 
     @Test

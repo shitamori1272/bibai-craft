@@ -19,8 +19,8 @@ class HudTextTest {
     void 企画書の例の形で出す() {
         PlayerData d = data();
         d.setCoal(BigNum.of(1234));
-        // 階層 1 は累計 1,000〜3,000。1,940 は進み具合 0.47 → 80m × 0.47 = 37.6m → 37m
-        d.setTotalMined(BigNum.of(1_940));
+        // 階層 1 は累計 6,400〜19,200。12,416 は進み具合 0.47 → 80m × 0.47 = 37.6m → 37m
+        d.setTotalMined(BigNum.of(12_416));
         assertEquals("石炭 1,234個 ｜ 毎秒 0個 ｜ 第2坑道 深さ200m 37/80m", HudText.actionBar(d));
     }
 
@@ -30,14 +30,14 @@ class HudTextTest {
         d.setToolCount("lamp", 3);
         d.setCoal(BigNum.of(5));
         assertEquals("石炭 5個 ｜ 毎秒 3個 ｜ 第1坑道 深さ100m 0/64m", HudText.actionBar(d));
-        d.setTotalMined(BigNum.of(1_000)); // 階層 1 → ×1.1
+        d.setTotalMined(BigNum.of(6_400)); // 階層 1 → ×1.1
         assertEquals("石炭 5個 ｜ 毎秒 3.3個 ｜ 第2坑道 深さ200m 0/80m", HudText.actionBar(d));
     }
 
     @Test
     void ケージ待ちのときは数値上の階層のままヒントを付ける() {
         PlayerData d = data();
-        d.setTotalMined(BigNum.of(7_000)); // 階層 3
+        d.setTotalMined(BigNum.of(44_800)); // 階層 3
         assertEquals("石炭 0個 ｜ 毎秒 0個 ｜ 第4坑道 深さ400m 0/112m ｜ ケージで降りよう", HudText.actionBar(d, true));
         assertEquals("石炭 0個 ｜ 毎秒 0個 ｜ 第4坑道 深さ400m 0/112m", HudText.actionBar(d, false));
     }
@@ -67,7 +67,7 @@ class HudTextTest {
     void 記録の一覧() {
         PlayerData d = data();
         d.setCoal(BigNum.of(500));
-        d.setTotalMined(BigNum.of(5_000)); // 階層 2（3,000〜7,000）の半分
+        d.setTotalMined(BigNum.of(32_000)); // 階層 2（19,200〜44,800）の半分
         d.setToolCount("blasting", 4);
         d.setToolCount("lamp", 2);
         d.addUpgrade("lamp_1"); // 安全灯 ×2
@@ -76,12 +76,12 @@ class HudTextTest {
         d.mine().setMaxReachedLevel(3);
         List<HudText.Entry> lines = HudText.record(d);
         assertEquals(new HudText.Entry("現在の石炭", "500個"), lines.get(0));
-        assertEquals(new HudText.Entry("累計採掘量", "5,000個"), lines.get(1));
+        assertEquals(new HudText.Entry("累計採掘量", "3.2万個"), lines.get(1));
         // (4 × 80 + 2 × 1 × 2) × 1.1^2 = 392.04
         assertEquals(new HudText.Entry("毎秒の石炭", "392個"), lines.get(2));
         assertEquals(new HudText.Entry("手掘り 1 回", "10個"), lines.get(3));
         assertEquals(new HudText.Entry("手掘りの回数", "1,234回"), lines.get(4));
-        assertEquals(new HudText.Entry("今の坑道", "第3坑道・深さ300m・48/96m・次の坑道まであと2,000個"), lines.get(5));
+        assertEquals(new HudText.Entry("今の坑道", "第3坑道・深さ300m・48/96m・次の坑道まであと1.28万個"), lines.get(5));
         assertEquals(new HudText.Entry("最深の坑道", "第4坑道（深さ400m）"), lines.get(6));
         // 2 × 1 × 2 × 1.21 = 4.84 → 4.8、4 × 80 × 1.21 = 387.2 → 387（有効数字で切り捨て）
         assertEquals(new HudText.Entry("安全灯", "2個（毎秒 4.8個）"), lines.get(7));
@@ -94,10 +94,10 @@ class HudTextTest {
     @Test
     void 最深の坑道は今の階層より浅くならない() {
         PlayerData d = data();
-        d.setTotalMined(BigNum.of(7_000)); // 階層 3 になったばかり
+        d.setTotalMined(BigNum.of(44_800)); // 階層 3 になったばかり
         List<HudText.Entry> lines = HudText.record(d);
         assertEquals(new HudText.Entry("最深の坑道", "第4坑道（深さ400m）"), lines.get(6));
-        assertEquals(new HudText.Entry("今の坑道", "第4坑道・深さ400m・0/112m・次の坑道まであと8,000個"), lines.get(5));
+        assertEquals(new HudText.Entry("今の坑道", "第4坑道・深さ400m・0/112m・次の坑道まであと5.119万個"), lines.get(5));
     }
 
     @Test
@@ -116,7 +116,7 @@ class HudTextTest {
     void 初期状態の記録() {
         List<HudText.Entry> lines = HudText.record(data());
         assertEquals(new HudText.Entry("手掘りの回数", "0回"), lines.get(4));
-        assertEquals(new HudText.Entry("今の坑道", "第1坑道・深さ100m・0/64m・次の坑道まであと1,000個"), lines.get(5));
+        assertEquals(new HudText.Entry("今の坑道", "第1坑道・深さ100m・0/64m・次の坑道まであと6,400個"), lines.get(5));
         assertEquals(new HudText.Entry("最深の坑道", "第1坑道（深さ100m）"), lines.get(6));
         assertEquals(new HudText.Entry("改良", "0/64"), lines.get(15));
     }
@@ -124,6 +124,6 @@ class HudTextTest {
     @Test
     void 次の坑道までの残りは0未満にしない() {
         assertEquals(BigNum.ZERO, HudText.untilNextLevel(BigNum.of(1, 1000), 0));
-        assertEquals(BigNum.of(500), HudText.untilNextLevel(BigNum.of(500), 0));
+        assertEquals(BigNum.of(500), HudText.untilNextLevel(BigNum.of(5_900), 0));
     }
 }
