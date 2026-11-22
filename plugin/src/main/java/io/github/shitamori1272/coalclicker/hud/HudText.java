@@ -71,7 +71,7 @@ public final class HudText {
     }
 
     /** 例: 階層 1 → {@code 第2坑道}。 */
-    static String tunnelName(long level) {
+    public static String tunnelName(long level) {
         return "第" + String.format(Locale.ROOT, "%,d", number(level)) + "坑道";
     }
 
