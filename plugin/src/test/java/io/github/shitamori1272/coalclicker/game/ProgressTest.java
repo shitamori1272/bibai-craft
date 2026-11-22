@@ -239,6 +239,19 @@ class ProgressTest {
         Progress.Result r = Progress.advanceMeters(Long.MAX_VALUE / 32, 0.5, 1, E100);
         assertEquals(Long.MAX_VALUE / 32, r.level());
         assertTrue(r.progress() > 0.5);
+        assertEquals(1, r.meters());
+        assertClose(100, r.coal());
+    }
+
+    @Test
+    void とても深い階層で1の直前から進めても渡した長さ分しかもらえない() {
+        // 残りは割合の最小単位 × 長さで何千 m にもなるが、1m 分の石炭だけで次の階層へ進む
+        long level = Long.MAX_VALUE / 32;
+        Progress.Result r = Progress.advanceMeters(level, Math.nextDown(1.0), 1, E100);
+        assertEquals(level + 1, r.level());
+        assertEquals(0, r.progress());
+        assertEquals(1, r.meters());
+        assertClose(100, r.coal());
     }
 
     @Test
@@ -246,6 +259,9 @@ class ProgressTest {
         Progress.Result r = Progress.advanceMeters(Long.MAX_VALUE, Math.nextDown(1.0), 1, E100);
         assertEquals(Long.MAX_VALUE, r.level());
         assertEquals(Math.nextDown(1.0), r.progress());
+        assertEquals(0, r.levelsCompleted());
+        assertEquals(1, r.meters());
+        assertClose(100, r.coal());
     }
 
     @Test

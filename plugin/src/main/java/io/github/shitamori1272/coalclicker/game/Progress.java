@@ -181,19 +181,26 @@ public final class Progress {
         }
         double length = Formulas.tunnelLength(lvl);
         double rest = (1 - p) * length;
-        // 割合の誤差で残りがほんのわずかになったときも、掘り切ったものとして扱う
-        if (meters >= rest - 1e-9 * Math.max(1.0, length)) {
-            BigNum coal = coalPerMeter.multiply(rest);
-            if (lvl == Long.MAX_VALUE) {
-                return new Result(lvl, LAST_PROGRESS, coal, completed, rest);
+        // 掘った長さは渡された meters を超えない（深い階層で残りが割合の誤差で大きく見えても、もらいすぎない）
+        double dug = Math.min(meters, rest);
+        BigNum coal = coalPerMeter.multiply(dug);
+        double next;
+        if (meters >= rest) {
+            next = 1;
+        } else {
+            next = p + meters / length;
+            if (next <= p) {
+                // とても深い階層では増分が割合の精度より小さい。止まらないよう最小単位だけ進める
+                next = Math.nextUp(p);
             }
-            return new Result(lvl + 1, 0, coal, completed + 1, rest);
         }
-        double next = p + meters / length;
-        if (next <= p) {
-            // とても深い階層では増分が割合の精度より小さい。止まらないよう最小単位だけ進める
-            next = Math.nextUp(p);
+        if (next < 1) {
+            return new Result(lvl, next, coal, completed, dug);
         }
-        return new Result(lvl, next, coalPerMeter.multiply(meters), completed, meters);
+        // 掘り切った（丸めで 1 に届いた場合を含む）。超えた分は捨てる
+        if (lvl == Long.MAX_VALUE) {
+            return new Result(lvl, LAST_PROGRESS, coal, completed, dug);
+        }
+        return new Result(lvl + 1, 0, coal, completed + 1, dug);
     }
 }

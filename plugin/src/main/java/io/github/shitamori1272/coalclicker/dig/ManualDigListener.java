@@ -7,6 +7,7 @@ import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.number.JapaneseFormat;
 import io.github.shitamori1272.coalclicker.world.MineLayout;
 import io.papermc.paper.event.player.PlayerArmSwingEvent;
+import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +44,8 @@ import org.bukkit.util.RayTraceResult;
  * {@link PlayerInteractEvent}（LEFT_CLICK_BLOCK）が届かないことがある。そこで次の 2 つを両方見る。
  * <ul>
  *   <li>{@link PlayerInteractEvent} の LEFT_CLICK_BLOCK（メインハンドだけ）
- *   <li>{@link PlayerArmSwingEvent}（メインハンドだけ）。視線の先のブロックを自分で調べる
+ *   <li>{@link PlayerArmSwingEvent}（メインハンドだけ）。視線の先をブロックとエンティティまとめて調べ、
+ *       いちばん手前が切羽のブロックのときだけ数える。エンティティを攻撃した tick の振りは数えない
  * </ul>
  * 1 回の左クリックで両方が来ることがあるので、1 tick に数えるのは 1 回まで（毎秒 20 回までの上限も兼ねる）。
  *
@@ -62,6 +64,8 @@ public final class ManualDigListener implements Listener {
     private final DataStore dataStore;
     private final MineService mineService;
     private final Map<UUID, Hits> hits = new HashMap<>();
+    /** 最後にエンティティを叩いた tick。 */
+    private final Map<UUID, Integer> attackTicks = new HashMap<>();
 
     /** 叩いている切羽と回数。切羽は区画・階層・進み具合の整数 m で見分ける。 */
     private static final class Hits {
@@ -109,10 +113,23 @@ public final class ManualDigListener implements Listener {
         if (mineService.sectionOf(player).isEmpty()) {
             return;
         }
-        RayTraceResult result = player.rayTraceBlocks(reach(player), FluidCollisionMode.NEVER);
-        if (result != null && result.getHitBlock() != null) {
+        // エンティティを叩いた振りは数えない（攻撃は振りより先に届く）
+        Integer attacked = attackTicks.get(player.getUniqueId());
+        if (attacked != null && attacked == Bukkit.getCurrentTick()) {
+            return;
+        }
+        // ブロックとエンティティをまとめて調べ、いちばん手前が切羽のブロックのときだけ数える
+        Location eye = player.getEyeLocation();
+        RayTraceResult result = player.getWorld().rayTrace(eye, eye.getDirection(), reach(player),
+                FluidCollisionMode.NEVER, true, 0.0, entity -> !entity.equals(player));
+        if (result != null && result.getHitEntity() == null && result.getHitBlock() != null) {
             hit(player, result.getHitBlock());
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onAttack(PrePlayerAttackEntityEvent event) {
+        attackTicks.put(event.getPlayer().getUniqueId(), Bukkit.getCurrentTick());
     }
 
     /** 切羽を 1 回叩く。手掘りできる切羽でなければ何もしない。 */
@@ -195,6 +212,7 @@ public final class ManualDigListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         hits.remove(event.getPlayer().getUniqueId());
+        attackTicks.remove(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
