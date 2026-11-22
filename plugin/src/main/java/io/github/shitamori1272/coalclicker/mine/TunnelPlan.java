@@ -72,7 +72,11 @@ public record TunnelPlan(Kind kind, int fromX, int toX, boolean shiftPlayers) {
         if (numeric < renderedLevel) {
             return 0;
         }
-        return meters(Formulas.progressOf(totalMined), length);
+        double displayed = meters(Formulas.progressOf(totalMined), length);
+        // BigNum の丸め誤差で累計が境目をほんの少し下回ることがある。このとき meters() だけが
+        // 終点へ丸めると、数値上は次の階層でないのに切羽が消えてケージにも乗れなくなる。
+        // 同じ階層にいる間は必ず終点未満に保ち、最後の 1 回を叩けるようにする。
+        return Math.min(displayed, Math.nextDown(length));
     }
 
     /**

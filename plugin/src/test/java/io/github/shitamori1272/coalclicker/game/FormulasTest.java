@@ -107,7 +107,7 @@ class FormulasTest {
     void 毎秒の石炭に深さ倍率が掛かる() {
         Map<String, Long> tools = Map.of("lamp", 10L);
         assertClose(10 * Math.pow(1.1, 5), Formulas.coalPerSecond(tools, Set.of(), 5));
-        GameState state = GameState.of(tools, Set.of("lamp_1"), 0, BigNum.of(3_000)); // 階層 2
+        GameState state = GameState.of(tools, Set.of("lamp_1"), 0, Formulas.cumulativeToFinish(1)); // 階層 2
         assertClose(20 * 1.21, Formulas.coalPerSecond(state));
     }
 
@@ -140,7 +140,8 @@ class FormulasTest {
         assertEquals(2, Formulas.skillUpgradeCount(Set.of("skill_1", "skill_2", "pickaxe_1")));
         assertEquals(1, Formulas.pickaxeUpgradeCount(Set.of("skill_1", "skill_2", "pickaxe_1")));
         // GameState からは今の階層の毎秒の石炭を使う：100 × 1.1 × 0.01 ＋ 10 ＝ 11.1
-        GameState state = GameState.of(Map.of("minecart", 10L), Set.of("skill_1"), 0, BigNum.of(1_000));
+        GameState state = GameState.of(Map.of("minecart", 10L), Set.of("skill_1"), 0,
+                Formulas.cumulativeToFinish(0));
         assertClose(11.1, Formulas.clickCoal(state));
     }
 
@@ -148,14 +149,14 @@ class FormulasTest {
 
     @Test
     void 必要量と累計() {
-        assertClose(1_000, Formulas.levelRequirement(0));
-        assertClose(2_000, Formulas.levelRequirement(1));
-        assertClose(1_000 * Math.pow(2, 50), Formulas.levelRequirement(50));
+        assertClose(6_400, Formulas.levelRequirement(0));
+        assertClose(12_800, Formulas.levelRequirement(1));
+        assertClose(6_400 * Math.pow(2, 50), Formulas.levelRequirement(50));
         assertTrue(Formulas.cumulativeToFinish(-1).isZero());
-        assertClose(1_000, Formulas.cumulativeToFinish(0));
-        assertClose(3_000, Formulas.cumulativeToFinish(1));
-        assertClose(1_000 * (Math.pow(2, 41) - 1), Formulas.cumulativeToFinish(40));
-        assertClose(1_000 * (Math.pow(2, 101) - 1), Formulas.cumulativeToFinish(100));
+        assertClose(6_400, Formulas.cumulativeToFinish(0));
+        assertClose(19_200, Formulas.cumulativeToFinish(1));
+        assertClose(6_400 * (Math.pow(2, 41) - 1), Formulas.cumulativeToFinish(40));
+        assertClose(6_400 * (Math.pow(2, 101) - 1), Formulas.cumulativeToFinish(100));
         // 累計 ＝ 必要量の和
         BigNum sum = BigNum.ZERO;
         for (int n = 0; n < 60; n++) {
@@ -169,12 +170,12 @@ class FormulasTest {
     void 階層は累計の境目ちょうどで切り替わる() {
         assertEquals(0, Formulas.levelOf(BigNum.ZERO));
         assertEquals(0, Formulas.levelOf(BigNum.of(-5)));
-        assertEquals(0, Formulas.levelOf(BigNum.of(999.999)));
-        assertEquals(1, Formulas.levelOf(BigNum.of(1_000)));
-        assertEquals(1, Formulas.levelOf(BigNum.of(2_999)));
-        assertEquals(2, Formulas.levelOf(BigNum.of(3_000)));
+        assertEquals(0, Formulas.levelOf(BigNum.of(6_399.999)));
+        assertEquals(1, Formulas.levelOf(BigNum.of(6_400)));
+        assertEquals(1, Formulas.levelOf(BigNum.of(19_199)));
+        assertEquals(2, Formulas.levelOf(BigNum.of(19_200)));
         for (int n = 1; n <= 45; n++) {
-            double boundary = 1_000 * (Math.pow(2, n) - 1);
+            double boundary = 6_400 * (Math.pow(2, n) - 1);
             assertEquals(n, Formulas.levelOf(BigNum.of(boundary)), "境目 " + n);
             assertEquals(n - 1, Formulas.levelOf(BigNum.of(boundary).multiply(1 - 1e-12)), "境目の手前 " + n);
         }
@@ -188,11 +189,11 @@ class FormulasTest {
 
     @Test
     void 階層はとても大きな累計でも計算できる() {
-        // 1e300 ＝ 1000 × 2^n → n ≈ log2(1e297) ≈ 986.6
-        assertEquals((long) Math.floor(297 / Math.log10(2)), Formulas.levelOf(BigNum.of(1e300)));
-        assertEquals((long) Math.floor(4997 / Math.log10(2)), Formulas.levelOf(BigNum.of(1, 5000)));
+        double baseLog = Math.log10(Formulas.BASE_LEVEL_REQUIREMENT);
+        assertEquals((long) Math.floor((300 - baseLog) / Math.log10(2)), Formulas.levelOf(BigNum.of(1e300)));
+        assertEquals((long) Math.floor((5000 - baseLog) / Math.log10(2)), Formulas.levelOf(BigNum.of(1, 5000)));
         long deep = Formulas.levelOf(BigNum.of(1, 1_000_000_000_000L));
-        assertEquals(Math.floor((1e12 - 3) / Math.log10(2)), deep, 1e-3 * deep);
+        assertEquals(Math.floor((1e12 - baseLog) / Math.log10(2)), deep, 1e-3 * deep);
         // long の上限で頭打ち
         assertEquals(Long.MAX_VALUE, Formulas.levelOf(BigNum.of(9, Long.MAX_VALUE - 10)));
         assertTrue(Formulas.progressOf(BigNum.of(9, Long.MAX_VALUE - 10)) < 1);
@@ -201,10 +202,10 @@ class FormulasTest {
     @Test
     void 進み具合は今の階層の中の割合() {
         assertEquals(0, Formulas.progressOf(BigNum.ZERO));
-        assertEquals(0.5, Formulas.progressOf(BigNum.of(500)), 1e-12);
-        assertEquals(0, Formulas.progressOf(BigNum.of(1_000)), 1e-12);
-        assertEquals(0.47, Formulas.progressOf(BigNum.of(1_940)), 1e-12);
-        assertEquals(0.25, Formulas.progressOf(BigNum.of(4_000)), 1e-12);
+        assertEquals(0.5, Formulas.progressOf(BigNum.of(3_200)), 1e-12);
+        assertEquals(0, Formulas.progressOf(BigNum.of(6_400)), 1e-12);
+        assertEquals(0.47, Formulas.progressOf(BigNum.of(12_416)), 1e-12);
+        assertEquals(0.25, Formulas.progressOf(BigNum.of(25_600)), 1e-12);
         // 深い階層でも 0〜1 に収まる
         for (long n : new long[] {100, 10_000, 1L << 40}) {
             BigNum start = Formulas.cumulativeToFinish(n - 1);

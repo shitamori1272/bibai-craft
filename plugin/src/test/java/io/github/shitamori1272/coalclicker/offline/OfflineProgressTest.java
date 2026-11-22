@@ -91,14 +91,14 @@ class OfflineProgressTest {
     void 階層をまたいだら途中から深さ倍率が上がり進んだ階層も知らせる() {
         PlayerData data = digger(NOW - 3600);
         String message = OfflineProgress.grant(data, new ServerData(), NOW).orElseThrow();
-        // 階層ごとに区切って足す：毎秒 10 × 1.1^L で、境目 1,000・3,000・7,000・15,000・31,000 を越えていく
+        // 階層ごとに区切って足す：毎秒 10 × 1.1^L で、境目 6,400・19,200 を越えていく
         double expected = simulate(10, 3600);
         assertEquals(1.0, data.totalMined().toDouble() / expected, 1e-4);
         // ログアウトしたときの階層のまま（36,000 個）より多い
         assertTrue(data.totalMined().toDouble() > 36_000);
         long level = Formulas.levelOf(data.totalMined());
-        assertEquals(5, level);
-        assertEquals("留守の間に " + JapaneseFormat.format(data.coal()) + "個の石炭を掘りました。第6坑道まで進みました（5階層）。",
+        assertEquals(2, level);
+        assertEquals("留守の間に " + JapaneseFormat.format(data.coal()) + "個の石炭を掘りました。第3坑道まで進みました（2階層）。",
                 message);
     }
 

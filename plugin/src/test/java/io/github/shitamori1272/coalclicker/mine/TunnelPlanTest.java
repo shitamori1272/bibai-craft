@@ -117,13 +117,27 @@ class TunnelPlanTest {
 
     @Test
     void 見せる進み具合は累計採掘量から決まり階層が進んだら掘り切った長さ() {
-        // 階層 0：累計 250 ÷ 1,000 × 64m ＝ 16m
-        assertEquals(16.0, TunnelPlan.displayedMeters(0, BigNum.of(250)));
-        // 階層 1：(1,000 + 500) → 500 ÷ 2,000 × 80m ＝ 20m
-        assertEquals(20.0, TunnelPlan.displayedMeters(1, BigNum.of(1_500)));
+        // 初期の手掘りは 10 個 × 10 回で 1m
+        assertEquals(1.0, TunnelPlan.displayedMeters(0, BigNum.of(100)));
+        // 階層 0：累計 1,600 ÷ 6,400 × 64m ＝ 16m
+        assertEquals(16.0, TunnelPlan.displayedMeters(0, BigNum.of(1_600)));
+        // 階層 1：(6,400 + 3,200) → 3,200 ÷ 12,800 × 80m ＝ 20m
+        assertEquals(20.0, TunnelPlan.displayedMeters(1, BigNum.of(9_600)));
         // 置いてあるのは階層 0 だが数値上は階層 3：階層 0 を掘り切った 64m
         assertEquals(64.0, TunnelPlan.displayedMeters(0, Formulas.cumulativeToFinish(2).add(BigNum.of(5))));
         // 数値上の階層が戻った（ふつうは起きない）
         assertEquals(0.0, TunnelPlan.displayedMeters(4, BigNum.of(10)));
+    }
+
+    @Test
+    void 境目直前の丸め誤差で切羽が消えない() {
+        BigNum almostFinished = BigNum.parse("6.39999999999999e3");
+        assertEquals(0, Formulas.levelOf(almostFinished));
+        double meters = TunnelPlan.displayedMeters(0, almostFinished);
+        assertEquals(Math.nextDown(64.0), meters);
+        assertTrue(meters < Formulas.tunnelLength(0));
+
+        // 累計が本当に境目へ届けば、置いてある古い階層は掘り切った状態になる
+        assertEquals(64.0, TunnelPlan.displayedMeters(0, BigNum.of(6_400)));
     }
 }
