@@ -1,0 +1,1 @@
+execute unless data storage tomei_park_cherries:state finished run function tomei_park_cherries:wait_for_park
