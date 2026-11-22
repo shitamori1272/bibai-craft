@@ -23,8 +23,22 @@ cd bibai-craft
 
 ```sh
 cd server-data
-java -Xms512M -Xmx2G -jar minecraft_server.26.3.jar nogui
+java ../server/World.java local
 ```
+
+## 制作の続きと初期マップでの試遊
+
+Gitで共有する初期マップは `maps/bibai/` です。通常起動では、初回にこの原本を `server-data/bibai/` にコピーします。すでに制作中のワールドがあれば、その続きから始まります。`git pull` 後も制作中のセーブはそのまま使えます。
+
+| やりたいこと | macOS（リポジトリ直下） | Windows・Linux（`server-data` 内） |
+|---|---|---|
+| 建築・開発の続きを開く | `./start.command` | `java ../server/World.java local` |
+| 今の原本から新しく試遊する | `./start.command preview` | `java ../server/World.java preview` |
+| 制作ワールドを原本に反映する | `./start.command publish` | `java ../server/World.java publish` |
+
+**地形担当**は通常起動したサーバーで一緒に建築します。共有する段階でコンソールに `stop` と入力し、終了を待ってから `publish` を実行します。地形・建築・チェストの中身・ワールド設定などが原本に入り、個人の持ち物・位置・進捗は除外されます。差分を確認して `git add -A -- maps/bibai` で追加し、チームのブランチにコミット・プッシュします。地形の原本更新はホスト1人が担当します。
+
+**ゲーム機能担当**は自分のPCで通常起動して繰り返し開発できます。共有された地形でテストするときは変更を取り込み（例: `git pull`）、同じポートで動いているサーバーを `stop` で終了してから `preview` で起動します。今回の試遊用コピーだけが起動し、終了時に片付けられます。次に通常起動すると、元の作業の続きに戻れます。
 
 ## LAN から参加する
 
@@ -34,4 +48,4 @@ java -Xms512M -Xmx2G -jar minecraft_server.26.3.jar nogui
 
 例えば、サーバー一覧の表示名は [server/server.properties](server/server.properties) の `motd` で変更できます。サーバーのコンソールで `stop` と入力して保存終了し、再起動して変更を確認します。Windows・Linux では再起動前に編集したファイルをもう一度 `server-data` にコピーしてください。
 
-Git で共有するのはリポジトリ側の設定です。各自のワールドは `server-data/bibai/` に保存され、JAR・ログ・EULA の同意記録とともに Git の対象外です。
+各自のセーブ、JAR、ログ、EULA の同意記録は `server-data/` に保存され、Git の対象外です。

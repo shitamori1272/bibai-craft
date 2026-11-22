@@ -7,13 +7,6 @@ data="$root/server-data"
 mkdir -p "$data"
 cd "$data"
 
-if ! grep -Eq '^eula=true$' eula.txt 2>/dev/null; then
-  print 'Minecraft EULA: https://www.minecraft.net/ja-jp/eula'
-  read -r 'answer?内容に同意して起動する場合は yes と入力してください: '
-  [[ "$answer" == yes ]] || exit 1
-  print 'eula=true' > eula.txt
-fi
-
 # Use the Homebrew JDK even when macOS's java launcher has no registered JDK.
 if [[ -n "${JAVA_HOME:-}" ]]; then
   java_bin="$JAVA_HOME/bin/java"
@@ -22,6 +15,22 @@ elif [[ -x /opt/homebrew/opt/openjdk/bin/java ]]; then
 else
   java_bin=java
 fi
+mode=${1:-local}
+if (( $# > 1 )) || [[ "$mode" != local && "$mode" != preview && "$mode" != publish ]]; then
+  print -u2 '使い方: ./start.command [local|preview|publish]'
+  exit 1
+fi
+if [[ "$mode" == publish ]]; then
+  exec "$java_bin" "$root/server/World.java" publish
+fi
+
+if ! grep -Eq '^eula=true$' eula.txt 2>/dev/null; then
+  print 'Minecraft EULA: https://www.minecraft.net/ja-jp/eula'
+  read -r 'answer?内容に同意して起動する場合は yes と入力してください: '
+  [[ "$answer" == yes ]] || exit 1
+  print 'eula=true' > eula.txt
+fi
+
 "$java_bin" -version
 
 # Bind only to a LAN IPv4 address, including on Macs with a VPN.
@@ -57,4 +66,4 @@ trap - EXIT
 
 print "Java Edition $version | 接続先 $lan_ip:25565"
 print 'ログに Done が出たら参加できます。終了するには stop を入力してください。'
-exec "$java_bin" -Xms512M -Xmx2G -jar "$jar" nogui
+exec "$java_bin" "$root/server/World.java" "$mode"
