@@ -1,0 +1,5 @@
+name: CoalClicker
+version: '${version}'
+main: io.github.shitamori1272.coalclicker.CoalClicker
+api-version: '${apiVersion}'
+description: 美唄の炭鉱を題材にした放置ゲーム「石炭クリッカー」
