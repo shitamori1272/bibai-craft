@@ -63,7 +63,8 @@ public final class ResetCommand implements SubCommand {
             return;
         }
         if (args.length == 1 || !args[1].equalsIgnoreCase(CONFIRM)) {
-            sender.sendMessage(Component.text(target.getName() + " の石炭・累計採掘量・道具・坑道の進み具合をすべて消します。"
+            sender.sendMessage(Component.text(target.getName() + " の石炭・累計採掘量・道具・改良・手掘りの回数・坑道の進み具合をすべて消します"
+                    + "（区画は残します）。"
                     + "よければ /coal admin reset " + target.getName() + " confirm を実行してください。",
                     NamedTextColor.YELLOW));
             return;

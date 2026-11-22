@@ -70,17 +70,60 @@ class HudTextTest {
         d.setTotalMined(BigNum.of(5_000)); // 階層 2（3,000〜7,000）の半分
         d.setToolCount("blasting", 4);
         d.setToolCount("lamp", 2);
+        d.addUpgrade("lamp_1"); // 安全灯 ×2
+        d.addUpgrade("unknown_upgrade"); // 知らない ID は数えない
+        d.setClicks(1_234);
         d.mine().setMaxReachedLevel(3);
         List<HudText.Entry> lines = HudText.record(d);
         assertEquals(new HudText.Entry("現在の石炭", "500個"), lines.get(0));
         assertEquals(new HudText.Entry("累計採掘量", "5,000個"), lines.get(1));
-        // (4 × 80 + 2 × 1) × 1.1^2 = 389.62
-        assertEquals(new HudText.Entry("毎秒の石炭", "389個"), lines.get(2));
+        // (4 × 80 + 2 × 1 × 2) × 1.1^2 = 392.04
+        assertEquals(new HudText.Entry("毎秒の石炭", "392個"), lines.get(2));
         assertEquals(new HudText.Entry("手掘り 1 回", "10個"), lines.get(3));
-        assertEquals(new HudText.Entry("今の坑道", "第3坑道・深さ300m・48/96m"), lines.get(4));
-        assertEquals(new HudText.Entry("最深の坑道", "第4坑道"), lines.get(5));
-        assertTrue(lines.contains(new HudText.Entry("安全灯", "2個")));
-        assertTrue(lines.contains(new HudText.Entry("立坑櫓", "0個")));
-        assertEquals(6 + 8 + 1, lines.size());
+        assertEquals(new HudText.Entry("手掘りの回数", "1,234回"), lines.get(4));
+        assertEquals(new HudText.Entry("今の坑道", "第3坑道・深さ300m・48/96m・次の坑道まであと2,000個"), lines.get(5));
+        assertEquals(new HudText.Entry("最深の坑道", "第4坑道（深さ400m）"), lines.get(6));
+        // 2 × 1 × 2 × 1.21 = 4.84 → 4.8、4 × 80 × 1.21 = 387.2 → 387（有効数字で切り捨て）
+        assertEquals(new HudText.Entry("安全灯", "2個（毎秒 4.8個）"), lines.get(7));
+        assertEquals(new HudText.Entry("発破", "4個（毎秒 387個）"), lines.get(9));
+        assertEquals(new HudText.Entry("立坑櫓", "0個（毎秒 0個）"), lines.get(14));
+        assertEquals(new HudText.Entry("改良", "1/64"), lines.get(15));
+        assertEquals(7 + 8 + 1, lines.size());
+    }
+
+    @Test
+    void 最深の坑道は今の階層より浅くならない() {
+        PlayerData d = data();
+        d.setTotalMined(BigNum.of(7_000)); // 階層 3 になったばかり
+        List<HudText.Entry> lines = HudText.record(d);
+        assertEquals(new HudText.Entry("最深の坑道", "第4坑道（深さ400m）"), lines.get(6));
+        assertEquals(new HudText.Entry("今の坑道", "第4坑道・深さ400m・0/112m・次の坑道まであと8,000個"), lines.get(5));
+    }
+
+    @Test
+    void 手掘り1回はツルハシと熟練の改良を反映する() {
+        PlayerData d = data();
+        d.setToolCount("conveyor", 1); // 毎秒 2,600
+        d.addUpgrade("pickaxe_1"); // 10 × 2 = 20
+        d.addUpgrade("skill_1"); // ＋ 2,600 × 0.01 = 26
+        List<HudText.Entry> lines = HudText.record(d);
+        assertEquals(new HudText.Entry("毎秒の石炭", "2,600個"), lines.get(2));
+        assertEquals(new HudText.Entry("手掘り 1 回", "46個"), lines.get(3));
+        assertEquals(new HudText.Entry("改良", "2/64"), lines.get(15));
+    }
+
+    @Test
+    void 初期状態の記録() {
+        List<HudText.Entry> lines = HudText.record(data());
+        assertEquals(new HudText.Entry("手掘りの回数", "0回"), lines.get(4));
+        assertEquals(new HudText.Entry("今の坑道", "第1坑道・深さ100m・0/64m・次の坑道まであと1,000個"), lines.get(5));
+        assertEquals(new HudText.Entry("最深の坑道", "第1坑道（深さ100m）"), lines.get(6));
+        assertEquals(new HudText.Entry("改良", "0/64"), lines.get(15));
+    }
+
+    @Test
+    void 次の坑道までの残りは0未満にしない() {
+        assertEquals(BigNum.ZERO, HudText.untilNextLevel(BigNum.of(1, 1000), 0));
+        assertEquals(BigNum.of(500), HudText.untilNextLevel(BigNum.of(500), 0));
     }
 }
