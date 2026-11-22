@@ -147,6 +147,11 @@ public final class MineLayout {
         return x >= SHAFT_MIN_X && x <= SHAFT_MAX_X;
     }
 
+    /** (x, y, z) が区画 section の坑底の乗り場（X = -8〜0 × 坑道の断面）に入るか。 */
+    public static boolean inShaftBottomRoom(int section, int x, int y, int z) {
+        return inShaftBottom(x) && inTunnelCrossSection(section, y, z);
+    }
+
     private static double wholeMeters(double meters) {
         if (!Double.isFinite(meters) || meters < 0) {
             throw new IllegalArgumentException("進み具合が不正です: " + meters);

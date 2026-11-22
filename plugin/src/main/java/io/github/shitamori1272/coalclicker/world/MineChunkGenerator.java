@@ -45,6 +45,25 @@ public final class MineChunkGenerator extends ChunkGenerator {
         data.setRegion(0, MineLayout.SEAM_MIN_Y, 0, 16, MineLayout.SEAM_MAX_Y + 1, 16, Material.COAL_ORE);
         data.setRegion(0, MineLayout.CEILING_MIN_Y, 0, 16, MineLayout.CEILING_MAX_Y + 1, 16, Material.SANDSTONE);
         data.setRegion(0, min, 0, 16, min + 1, 16, Material.BEDROCK);
+        carveSpawnRoom(chunkX, chunkZ, data);
+    }
+
+    /**
+     * 区画 0 の坑底の乗り場を空気にする。初期地点が岩に埋まらないよう、坑道のコードより先に用意しておく。
+     * 床（Y40）は石のまま残る。
+     */
+    private static void carveSpawnRoom(int chunkX, int chunkZ, ChunkData data) {
+        int baseX = chunkX << 4;
+        int baseZ = chunkZ << 4;
+        int minX = Math.max(MineLayout.SHAFT_MIN_X, baseX);
+        int maxX = Math.min(MineLayout.SHAFT_MAX_X, baseX + 15);
+        int minZ = Math.max(MineLayout.tunnelMinZ(0), baseZ);
+        int maxZ = Math.min(MineLayout.tunnelMaxZ(0), baseZ + 15);
+        if (minX > maxX || minZ > maxZ) {
+            return;
+        }
+        data.setRegion(minX - baseX, MineLayout.TUNNEL_MIN_Y, minZ - baseZ,
+                maxX - baseX + 1, MineLayout.TUNNEL_MAX_Y + 1, maxZ - baseZ + 1, Material.AIR);
     }
 
     /** 地層の種類に対応するブロック。坑道を埋め直すコードからも使う。 */

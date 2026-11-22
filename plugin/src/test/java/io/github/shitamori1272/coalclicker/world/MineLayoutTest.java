@@ -124,4 +124,26 @@ class MineLayoutTest {
         assertFalse(MineLayout.inShaftBottom(-9));
         assertFalse(MineLayout.inShaftBottom(1));
     }
+
+    @Test
+    void 坑底の乗り場() {
+        assertTrue(MineLayout.inShaftBottomRoom(0, -8, 41, -1));
+        assertTrue(MineLayout.inShaftBottomRoom(0, 0, 43, 1));
+        assertFalse(MineLayout.inShaftBottomRoom(0, -9, 42, 0));
+        assertFalse(MineLayout.inShaftBottomRoom(0, 1, 42, 0));
+        assertFalse(MineLayout.inShaftBottomRoom(0, -4, 40, 0));
+        assertFalse(MineLayout.inShaftBottomRoom(0, -4, 44, 0));
+        assertFalse(MineLayout.inShaftBottomRoom(0, -4, 42, 2));
+    }
+
+    @Test
+    void 初期地点は坑底の乗り場の床の上() {
+        // MineWorld.spawnIn と同じ計算: X = -3.5, Y = 41, Z = 0.5
+        int x = (int) Math.floor((MineLayout.SHAFT_MIN_X + MineLayout.SHAFT_MAX_X) / 2.0 + 0.5);
+        int y = MineLayout.FLOOR_Y + 1;
+        int z = MineLayout.sectionZ(0);
+        assertTrue(MineLayout.inShaftBottomRoom(0, x, y, z));
+        assertTrue(MineLayout.inShaftBottomRoom(0, x, y + 1, z));
+        assertFalse(MineLayout.inShaftBottomRoom(0, x, y - 1, z));
+    }
 }
