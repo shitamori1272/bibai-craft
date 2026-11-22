@@ -135,6 +135,11 @@ public final class MineService implements Listener {
         return sectionOf(player).map(section -> sessions.get(player.getUniqueId()).renderedMeters);
     }
 
+    /** player が今自分の坑道にいれば、ワールド上に置いてある坑道の階層。数値上の階層より遅れていることがある（#22）。 */
+    public Optional<Long> renderedLevel(Player player) {
+        return sectionOf(player).map(section -> sessions.get(player.getUniqueId()).renderedLevel);
+    }
+
     /**
      * 進み具合が変わったことを知らせる（手掘り #14・自動の掘進 #15 から呼ぶ）。
      * 持ち主が自分の坑道にいて、置いてある坑道と同じ階層のときだけブロックを直す（企画書 5-3）。
