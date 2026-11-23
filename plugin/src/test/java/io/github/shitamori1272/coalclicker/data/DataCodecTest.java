@@ -86,7 +86,7 @@ class DataCodecTest {
         map.put("totalMined", "5.6789e4");
         map.put("clicks", "12");
         map.put("tools", Map.of("minecart", 3, "lamp", 10));
-        map.put("upgrades", List.of("lamp_1"));
+        map.put("upgrades", List.of("lamp_1", "trophy_4", "trophy_99", "unknown_1"));
         map.put("explained", List.of("lamp"));
         map.put("mine", mine);
         map.put("lastSeen", 1764000000);
@@ -97,7 +97,8 @@ class DataCodecTest {
         assertEquals(12, data.clicks());
         assertEquals(3, data.getToolCount("minecart"));
         assertEquals(10, data.getToolCount("lamp"));
-        assertEquals(Set.of("lamp_1"), data.upgrades());
+        // トロフィーは残し、範囲の外のトロフィーと知らない改良は捨てる
+        assertEquals(Set.of("lamp_1", "trophy_4"), data.upgrades());
         assertEquals(Set.of("lamp"), data.explained());
         assertEquals(2, data.mine().section());
         assertEquals(1, data.mine().maxReachedLevel());

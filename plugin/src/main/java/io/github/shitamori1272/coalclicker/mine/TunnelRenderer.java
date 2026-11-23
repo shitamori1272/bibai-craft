@@ -4,8 +4,11 @@ import io.github.shitamori1272.coalclicker.world.LevelStrata;
 import io.github.shitamori1272.coalclicker.world.MineLayout;
 import io.papermc.paper.entity.TeleportFlag;
 import java.util.Collection;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -15,9 +18,13 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Sign;
+import org.bukkit.block.data.Bisected;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.MultipleFacing;
 import org.bukkit.block.data.Rail;
+import org.bukkit.block.data.type.Bell;
 import org.bukkit.block.data.type.Lantern;
+import org.bukkit.block.data.type.TrapDoor;
 import org.bukkit.block.data.type.Light;
 import org.bukkit.block.data.type.WallSign;
 import org.bukkit.block.sign.Side;
@@ -44,9 +51,9 @@ public final class TunnelRenderer {
         boolean teleport(Player player, Location to, TeleportFlag... flags);
     }
 
-    /** ケージ（坑底の奥）の X。右クリックで降りる処理（#22）はこの列を見る。 */
+    /** ケージ（坑底の奥）の X。ケージへの誘導（#22）はこの列を目指す。右クリックの判定はケージ全体（{@link #isCageBlock}）。 */
     public static final int CAGE_X = MineLayout.SHAFT_MIN_X;
-    /** 入坑したときに立つブロックの X（ケージの少し手前）。 */
+    /** 入坑したときに立つブロックの X（ケージの中。ケージで降りてきた形になる）。 */
     static final int ARRIVAL_X = MineLayout.SHAFT_MIN_X + 2;
     /** 人車の乗り場のレールを敷く西端。 */
     static final int RAIL_MIN_X = MineLayout.SHAFT_MIN_X + 4;
@@ -54,8 +61,21 @@ public final class TunnelRenderer {
     private static final BlockData AIR = Material.AIR.createBlockData();
     private static final BlockData FENCE = Material.OAK_FENCE.createBlockData();
     private static final BlockData PLANKS = Material.OAK_PLANKS.createBlockData();
-    private static final BlockData IRON_BARS = Material.IRON_BARS.createBlockData();
-    private static final BlockData LODESTONE = Material.LODESTONE.createBlockData();
+    private static final BlockData IRON_BLOCK = Material.IRON_BLOCK.createBlockData();
+    private static final BlockData CHAIN = Material.IRON_CHAIN.createBlockData();
+    /** ケージの屋根の鉄板（閉じた上付きの鉄のトラップドア）。 */
+    private static final BlockData ROOF_PLATE = Material.IRON_TRAPDOOR.createBlockData(data -> {
+        TrapDoor trapDoor = (TrapDoor) data;
+        trapDoor.setHalf(Bisected.Half.TOP);
+        trapDoor.setOpen(false);
+        trapDoor.setFacing(BlockFace.EAST);
+    });
+    /** 巻き上げの合図の鐘（天井から吊る）。 */
+    private static final BlockData SIGNAL_BELL = Material.BELL.createBlockData(data -> {
+        Bell bell = (Bell) data;
+        bell.setAttachment(Bell.Attachment.CEILING);
+        bell.setFacing(BlockFace.EAST);
+    });
     private static final BlockData LIGHT = Material.LIGHT.createBlockData(data -> ((Light) data).setLevel(12));
     private static final BlockData LANTERN = Material.LANTERN.createBlockData(data -> ((Lantern) data).setHanging(true));
     private static final BlockData RAIL = Material.RAIL.createBlockData(
@@ -158,11 +178,13 @@ public final class TunnelRenderer {
                 && MineLayout.inTunnelCrossSection(section, block.getY(), block.getZ());
     }
 
-    /** block が区画 section の坑底のケージ（奥の列の断面）か。ケージで降りる処理（#22）に使う。 */
+    /**
+     * block が区画 section の坑底のケージ（鉄格子・床・屋根・看板・入口の枠。{@link MineLayout#inCage}）か。
+     * ケージで降りる処理（#22）に使う。
+     */
     public boolean isCageBlock(int section, Block block) {
         return block.getWorld().equals(world)
-                && block.getX() == CAGE_X
-                && MineLayout.inTunnelCrossSection(section, block.getY(), block.getZ());
+                && MineLayout.inCage(section, block.getX(), block.getY(), block.getZ());
     }
 
     /**
@@ -206,18 +228,104 @@ public final class TunnelRenderer {
                 }
             }
         }
-        // ケージ：奥の列の両脇を鉄格子、中央の床に磁石石（仮の目印）、その上に看板
-        for (int y = MineLayout.TUNNEL_MIN_Y; y <= MineLayout.TUNNEL_MAX_Y; y++) {
-            set(world.getBlockAt(CAGE_X, y, minZ), IRON_BARS);
-            set(world.getBlockAt(CAGE_X, y, maxZ), IRON_BARS);
-        }
-        set(world.getBlockAt(CAGE_X, MineLayout.TUNNEL_MIN_Y, centerZ), LODESTONE);
-        placeCageSign(world.getBlockAt(CAGE_X, MineLayout.TUNNEL_MIN_Y + 1, centerZ));
+        placeCage(section);
         // 人車の乗り場：中央にレール
         for (int x = RAIL_MIN_X; x <= MineLayout.SHAFT_MAX_X; x++) {
             set(world.getBlockAt(x, MineLayout.TUNNEL_MIN_Y, centerZ), RAIL);
         }
-        set(world.getBlockAt(MineLayout.SHAFT_MIN_X + 3, MineLayout.TUNNEL_MAX_Y, centerZ), LANTERN);
+        // 乗り場の明かりと、ケージの手前の天井に吊った合図の鐘
+        set(world.getBlockAt(RAIL_MIN_X + 1, MineLayout.TUNNEL_MAX_Y, centerZ), LANTERN);
+        set(world.getBlockAt(MineLayout.CAGE_MAX_X + 1, MineLayout.TUNNEL_MAX_Y, maxZ), SIGNAL_BELL);
+    }
+
+    /**
+     * 坑底の奥（X = -8〜-5）に、立坑に吊られた鉄のケージを置く。
+     *
+     * <pre>
+     *  中央の列の断面（南から見る）     上から（Y41）
+     *  Y46  | | | R   ← 立坑と鎖       Z+1  # # # #
+     *  Y45  | | | R                     Z    # . P .   ← 入口（X=-5）は開いている
+     *  Y44  | | | R   ← 屋根の中央      Z-1  # # # #
+     *  Y43  # L . #   ← 入口の上の枠        X=-8    -5
+     *  Y42  # s . .
+     *  Y41  # . P .
+     *  Y40  I I I I   ← 鉄の床
+     *      X=-8    -5
+     *  #＝鉄格子 |＝鎖 L＝吊りランタン s＝看板 P＝入坑して立つ位置 I＝鉄ブロック R＝岩
+     * </pre>
+     * 屋根（Y44）の両脇の列は閉じた鉄のトラップドア（鉄板）、中央の列は鎖。ケージの上（Y45〜46）は掘って立坑にする。
+     * 鉄格子は両脇（Z = 中心 ± 1）と奥（X = -8）を囲み、入口（X = -5）は両脇の柱と上の枠だけで開けておく
+     * （アドベンチャーモードでも通れる）。鎖は立坑の上の岩（Y47）から吊る。
+     * 立っていられる範囲（Z = 中心）と天井の高さは今までと同じ。
+     */
+    private void placeCage(int section) {
+        int centerZ = MineLayout.sectionZ(section);
+        int minZ = MineLayout.tunnelMinZ(section);
+        int maxZ = MineLayout.tunnelMaxZ(section);
+        int west = MineLayout.CAGE_MIN_X;
+        int east = MineLayout.CAGE_MAX_X;
+        // 立坑：ケージの上（屋根の上〜上端）を掘る
+        for (int x = west; x < east; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int y = MineLayout.CAGE_ROOF_Y + 1; y <= MineLayout.CAGE_SHAFT_TOP_Y; y++) {
+                    set(world.getBlockAt(x, y, z), AIR);
+                }
+            }
+        }
+        // 鉄の床と屋根（屋根は両脇の列が鉄板、中央の列は鎖）
+        for (int x = west; x <= east; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                set(world.getBlockAt(x, MineLayout.CAGE_FLOOR_Y, z), IRON_BLOCK);
+            }
+        }
+        for (int x = west; x < east; x++) {
+            set(world.getBlockAt(x, MineLayout.CAGE_ROOF_Y, minZ), ROOF_PLATE);
+            set(world.getBlockAt(x, MineLayout.CAGE_ROOF_Y, maxZ), ROOF_PLATE);
+            for (int y = MineLayout.CAGE_ROOF_Y; y <= MineLayout.CAGE_SHAFT_TOP_Y; y++) {
+                set(world.getBlockAt(x, y, centerZ), CHAIN);
+            }
+        }
+        // 鉄格子：両脇・奥・入口の柱と上の枠
+        Set<Block> bars = new HashSet<>();
+        for (int y = MineLayout.TUNNEL_MIN_Y; y <= MineLayout.TUNNEL_MAX_Y; y++) {
+            for (int x = west; x <= east; x++) {
+                bars.add(world.getBlockAt(x, y, minZ));
+                bars.add(world.getBlockAt(x, y, maxZ));
+            }
+            bars.add(world.getBlockAt(west, y, centerZ));
+        }
+        bars.add(world.getBlockAt(east, MineLayout.TUNNEL_MAX_Y, centerZ));
+        for (Block block : bars) {
+            set(block, ironBars(block, bars, west, minZ, maxZ));
+        }
+        // 中：吊りランタン（屋根の鎖から下げる）と、奥の鉄格子に掛けた看板
+        set(world.getBlockAt(west + 1, MineLayout.TUNNEL_MAX_Y, centerZ), LANTERN);
+        placeCageSign(world.getBlockAt(west + 1, MineLayout.TUNNEL_MIN_Y + 1, centerZ));
+    }
+
+    /** つながる向き（ほかの鉄格子と、外側の岩の壁）を決めた鉄格子。物理更新なしで置くので自分で決める。 */
+    private static BlockData ironBars(Block block, Set<Block> bars, int west, int minZ, int maxZ) {
+        Set<BlockFace> faces = EnumSet.noneOf(BlockFace.class);
+        for (BlockFace face : List.of(BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST)) {
+            if (bars.contains(block.getRelative(face))) {
+                faces.add(face);
+            }
+        }
+        if (block.getX() == west) {
+            faces.add(BlockFace.WEST);
+        }
+        if (block.getZ() == minZ) {
+            faces.add(BlockFace.NORTH);
+        }
+        if (block.getZ() == maxZ) {
+            faces.add(BlockFace.SOUTH);
+        }
+        return Material.IRON_BARS.createBlockData(data -> {
+            MultipleFacing facing = (MultipleFacing) data;
+            for (BlockFace face : faces) {
+                facing.setFace(face, true);
+            }
+        });
     }
 
     private void placeCageSign(Block block) {

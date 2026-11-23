@@ -146,4 +146,28 @@ class MineLayoutTest {
         assertTrue(MineLayout.inShaftBottomRoom(0, x, y + 1, z));
         assertFalse(MineLayout.inShaftBottomRoom(0, x, y - 1, z));
     }
+
+    @Test
+    void ケージは坑底の奥で床から屋根まで() {
+        int z = MineLayout.sectionZ(2);
+        assertTrue(MineLayout.inCage(2, -8, 41, z));
+        assertTrue(MineLayout.inCage(2, -5, 43, z + 1));
+        assertTrue(MineLayout.inCage(2, -7, MineLayout.CAGE_FLOOR_Y, z - 1));
+        assertTrue(MineLayout.inCage(2, -6, MineLayout.CAGE_ROOF_Y, z));
+        assertFalse(MineLayout.inCage(2, -4, 41, z));
+        assertFalse(MineLayout.inCage(2, -9, 41, z));
+        assertFalse(MineLayout.inCage(2, -7, MineLayout.CAGE_FLOOR_Y - 1, z));
+        assertFalse(MineLayout.inCage(2, -7, MineLayout.CAGE_ROOF_Y + 1, z));
+        assertFalse(MineLayout.inCage(2, -7, 41, z + 2));
+        // ほかの区画のケージには入らない
+        assertFalse(MineLayout.inCage(1, -7, 41, z));
+    }
+
+    @Test
+    void ケージは坑底の乗り場と埋め直す範囲に収まる() {
+        assertTrue(MineLayout.inShaftBottom(MineLayout.CAGE_MIN_X));
+        assertTrue(MineLayout.inShaftBottom(MineLayout.CAGE_MAX_X));
+        assertEquals(MineLayout.CEILING_MIN_Y + 1, MineLayout.CAGE_ROOF_Y);
+        assertEquals(MineLayout.CEILING_MAX_Y + 2, MineLayout.CAGE_SHAFT_TOP_Y);
+    }
 }

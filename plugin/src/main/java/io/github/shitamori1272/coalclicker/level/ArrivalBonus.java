@@ -2,7 +2,6 @@ package io.github.shitamori1272.coalclicker.level;
 
 import io.github.shitamori1272.coalclicker.data.MineState;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
-import io.github.shitamori1272.coalclicker.data.ServerData;
 import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.util.Optional;
@@ -16,8 +15,8 @@ import java.util.Optional;
  * 着いた階層がそれより深ければ、間の階層ぶんを {@link Formulas#arrivalBonus} の和の公式でまとめて渡す。
  * 1 階層あたり ＝ その階層での毎秒の石炭（深さ倍率を掛ける前の値 × 1.1^階層）× 60 秒分（最低保証はその階層での手掘り 1 回分）。
  *
- * <p>ボーナスは累計採掘量に含めるので、それで数値上の階層が進むことがある。その階層は「着いた」ことにならず、
- * ボーナスは次にケージで着いたときに渡す（着いた階層は呼ぶ側が決めるので、ここで累計採掘量から求め直さない）。
+ * <p>ボーナスは石炭の残高に足すだけで、累計採掘量・サーバー全体の累計採掘量には含めない（掘ったわけではないので、
+ * 坑道は進まない・トロフィーやランキングにも数えない）。
  */
 public final class ArrivalBonus {
 
@@ -40,10 +39,10 @@ public final class ArrivalBonus {
     }
 
     /**
-     * 着いた階層 {@code arrivedLevel} がはじめての階層なら、ボーナスを石炭・累計採掘量・サーバー全体の累計採掘量に足し、
+     * 着いた階層 {@code arrivedLevel} がはじめての階層なら、ボーナスを石炭の残高に足し、
      * {@code maxReachedLevel} をその階層にする。すでに着いたことのある階層なら何もしない。
      */
-    public static Optional<Result> claim(PlayerData data, ServerData server, long arrivedLevel) {
+    public static Optional<Result> claim(PlayerData data, long arrivedLevel) {
         MineState mine = data.mine();
         long from = mine.maxReachedLevel();
         long to = arrivedLevel;
@@ -54,8 +53,6 @@ public final class ArrivalBonus {
                 data.upgrades());
         if (coal.signum() > 0) {
             data.setCoal(data.coal().add(coal));
-            data.setTotalMined(data.totalMined().add(coal));
-            server.addServerTotalMined(coal);
         }
         mine.setMaxReachedLevel(to);
         return Optional.of(new Result(from, to, coal));

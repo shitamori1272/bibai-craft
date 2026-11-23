@@ -36,6 +36,17 @@ public final class MineLayout {
     /** 坑底の乗り場の東端。 */
     public static final int SHAFT_MAX_X = 0;
 
+    /** ケージの西端（坑底の奥の列。奥の鉄格子を置く）。 */
+    public static final int CAGE_MIN_X = SHAFT_MIN_X;
+    /** ケージの東端（入口の枠を置く列）。 */
+    public static final int CAGE_MAX_X = SHAFT_MIN_X + 3;
+    /** ケージの床（鉄）の高さ。坑道の床と同じ。 */
+    public static final int CAGE_FLOOR_Y = FLOOR_Y;
+    /** ケージの屋根の高さ（天井の砂岩の下段）。 */
+    public static final int CAGE_ROOF_Y = TUNNEL_MAX_Y + 1;
+    /** ケージの上に掘る立坑の上端。区画を埋め直す範囲（床の下 2 〜 天井の上 2）に収める。 */
+    public static final int CAGE_SHAFT_TOP_Y = CEILING_MAX_Y + 2;
+
     /** ループ表示の周期（m）。切羽はこの分だけ手前へ巻き戻る。 */
     public static final int LOOP_METERS = 64;
     /** ワールド上に坑道を置く範囲の東端。切羽がここに達したら巻き戻す。 */
@@ -145,6 +156,16 @@ public final class MineLayout {
     /** X が坑底の乗り場（X = -8〜0）に入るか。 */
     public static boolean inShaftBottom(int x) {
         return x >= SHAFT_MIN_X && x <= SHAFT_MAX_X;
+    }
+
+    /**
+     * (x, y, z) が区画 section のケージ（X = -8〜-5 × 坑道の幅 × 床〜屋根）に入るか。
+     * 右クリックで降りる判定に使う（鉄格子・床・看板・入口の枠のどれを叩いてもよい）。
+     */
+    public static boolean inCage(int section, int x, int y, int z) {
+        return x >= CAGE_MIN_X && x <= CAGE_MAX_X
+                && y >= CAGE_FLOOR_Y && y <= CAGE_ROOF_Y
+                && z >= tunnelMinZ(section) && z <= tunnelMaxZ(section);
     }
 
     /** (x, y, z) が区画 section の坑底の乗り場（X = -8〜0 × 坑道の断面）に入るか。 */

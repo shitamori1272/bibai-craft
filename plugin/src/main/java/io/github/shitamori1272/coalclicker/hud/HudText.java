@@ -3,6 +3,7 @@ package io.github.shitamori1272.coalclicker.hud;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
 import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.game.Tool;
+import io.github.shitamori1272.coalclicker.game.Trophy;
 import io.github.shitamori1272.coalclicker.game.Upgrade;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import io.github.shitamori1272.coalclicker.number.JapaneseFormat;
@@ -82,6 +83,9 @@ public final class HudText {
                             + "（毎秒 " + coal(Formulas.toolCoalPerSecond(tool, tools, upgrades, level)) + "）"));
         }
         lines.add(new Entry("改良", upgradeCount(upgrades) + "/" + Upgrade.values().size()));
+        int trophies = Trophy.count(upgrades);
+        lines.add(new Entry("トロフィー", trophies + "個（生産 +"
+                + Math.round(Trophy.BONUS_PER_TROPHY * 100 * trophies) + "%）"));
         return lines;
     }
 
