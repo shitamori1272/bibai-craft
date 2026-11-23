@@ -41,7 +41,9 @@ public final class ShopText {
         /** 操作の案内（黄）。 */
         HINT,
         /** 目立たない補足（濃い灰色）。 */
-        MUTED
+        MUTED,
+        /** 写真の文字（{@link ToolPhoto}）。画面側で写真のフォント・白・影なしにする。 */
+        PHOTO
     }
 
     /** 色付きの文字のかたまり。 */
@@ -102,6 +104,14 @@ public final class ShopText {
         lore.add(Line.of("この道具の合計：", "毎秒 " + JapaneseFormat.format(toolRate) + " 個・全体の "
                 + percent(toolRate, totalRate), Tone.VALUE));
         lore.add(Line.empty());
+        ToolPhoto.of(tool).ifPresent(photo -> {
+            // 写真は 1 行目から下にはみ出して描かれるので、その分の空行で場所を空ける
+            lore.add(Line.of(photo.glyph(), Tone.PHOTO));
+            for (int i = 1; i < ToolPhoto.rows(); i++) {
+                lore.add(Line.empty());
+            }
+            lore.add(Line.empty());
+        });
         for (String row : wrap(tool.shortDescription(), WRAP_WIDTH)) {
             lore.add(Line.of(row, Tone.DESCRIPTION));
         }

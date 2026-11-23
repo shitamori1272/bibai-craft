@@ -12,8 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.ShadowColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -211,17 +213,26 @@ public final class ShopMenu implements InventoryHolder {
         for (ShopText.Line line : lines) {
             Component component = Component.empty().decoration(TextDecoration.ITALIC, false);
             for (ShopText.Segment segment : line.segments()) {
-                component = component.append(Component.text(segment.text(), color(segment.tone())));
+                component = component.append(segment.tone() == ShopText.Tone.PHOTO
+                        ? photo(segment.text())
+                        : Component.text(segment.text(), color(segment.tone())));
             }
             lore.add(component);
         }
         return lore;
     }
 
+    /** 写真の文字。白にしないと写真に色が掛かり、影を消さないと写真の形の黒い影が出る。 */
+    private static Component photo(String glyph) {
+        return Component.text(glyph, NamedTextColor.WHITE)
+                .font(Key.key(ToolPhoto.FONT_NAMESPACE, ToolPhoto.FONT_KEY))
+                .shadowColor(ShadowColor.none());
+    }
+
     private static NamedTextColor color(ShopText.Tone tone) {
         return switch (tone) {
             case LABEL, DESCRIPTION -> NamedTextColor.GRAY;
-            case VALUE -> NamedTextColor.WHITE;
+            case VALUE, PHOTO -> NamedTextColor.WHITE;
             case AFFORDABLE, HINT -> NamedTextColor.YELLOW;
             case UNAFFORDABLE -> NamedTextColor.RED;
             case GAIN -> NamedTextColor.GREEN;

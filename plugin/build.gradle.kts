@@ -46,3 +46,13 @@ tasks.test {
 tasks.runServer {
     minecraftVersion(minecraftVersion)
 }
+
+// 道具の写真を入れたリソースパック（../resourcepack）を zip にする：./gradlew resourcePack
+val resourcePack by tasks.registering(Zip::class) {
+    from(rootProject.file("../resourcepack")) {
+        // 元の写真と書き出し用のスクリプトはパックに入れない
+        exclude("photos/**", "make_photos.py")
+    }
+    archiveFileName.set("coalclicker-resourcepack.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("resourcepack"))
+}
