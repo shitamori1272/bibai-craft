@@ -3,6 +3,7 @@ package io.github.shitamori1272.coalclicker.level;
 import io.github.shitamori1272.coalclicker.CoalClicker;
 import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
+import io.github.shitamori1272.coalclicker.effect.SoundFade;
 import io.github.shitamori1272.coalclicker.game.Formulas;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.mine.TunnelRenderer;
@@ -47,7 +48,8 @@ import org.bukkit.scheduler.BukkitTask;
  * <p>坑底のケージを右クリックすると、次の順で降りる。
  * <ol>
  *   <li>暗転（盲目）と鉄の扉を閉める音（ケージの扉）
- *   <li>巻揚機の音：トロッコの走行音を低く流し、鎖を置く音を一定間隔で鳴らす（ワイヤーが巻き出される音）
+ *   <li>巻揚機の音：トロッコの走行音を低く流し、鎖を置く音を一定間隔で鳴らす（ワイヤーが巻き出される音）。
+ *       止まる前にフェードアウトさせる（{@link SoundFade}）
  *   <li>ピストンの音でケージが止まる
  *   <li>区画を最新の階層に作り直して坑底へテレポートし、タイトル「第 ◯ 坑道」「深さ ◯◯m」
  * </ol>
@@ -61,6 +63,12 @@ public final class CageGuide implements Listener {
     static final int DESCENT_TICKS = 40;
     /** 鎖の音を鳴らす間隔（tick）。 */
     private static final int CHAIN_INTERVAL = 6;
+    /** 巻揚機の音（トロッコの走行音を低く）の音量と高さ。 */
+    private static final float RIDING_VOLUME = 0.6f;
+    private static final float RIDING_PITCH = 0.5f;
+    /** 巻揚機の音のフェードアウトの段の数と、1 段の長さ（tick）。 */
+    private static final int FADE_STEPS = 4;
+    private static final int FADE_INTERVAL = 3;
     /** 着いてから到達ボーナスのタイトルを出すまで（tick）。坑道のタイトルと重ならないようにする。 */
     private static final long BONUS_TITLE_DELAY = 70;
 
@@ -214,7 +222,7 @@ public final class CageGuide implements Listener {
         player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, DESCENT_TICKS + 15, 0, false, false, false));
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, DESCENT_TICKS, 4, false, false, false));
         player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_CLOSE, 1f, 0.8f);
-        player.playSound(player.getLocation(), Sound.ENTITY_MINECART_RIDING, 0.6f, 0.5f);
+        SoundFade.play(player, Sound.ENTITY_MINECART_RIDING, RIDING_VOLUME, RIDING_PITCH);
         int[] elapsed = {0};
         BukkitTask descent = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             elapsed[0]++;
@@ -232,8 +240,12 @@ public final class CageGuide implements Listener {
         if (tick < DESCENT_TICKS - 4 && tick % CHAIN_INTERVAL == 0) {
             player.playSound(player.getLocation(), Sound.BLOCK_CHAIN_PLACE, 0.8f, 0.5f);
         }
+        if (tick == DESCENT_TICKS - 4 - FADE_STEPS * FADE_INTERVAL) {
+            // ケージが止まるまでに、巻揚機の音をぶつっと切らずに小さくする
+            SoundFade.fadeOut(plugin, player, Sound.ENTITY_MINECART_RIDING, RIDING_VOLUME, RIDING_PITCH,
+                    FADE_STEPS, FADE_INTERVAL);
+        }
         if (tick == DESCENT_TICKS - 4) {
-            player.stopSound(Sound.ENTITY_MINECART_RIDING);
             player.playSound(player.getLocation(), Sound.BLOCK_PISTON_EXTEND, 0.8f, 0.6f);
         }
         if (tick < DESCENT_TICKS) {
@@ -269,7 +281,7 @@ public final class CageGuide implements Listener {
         hide(player);
         PlayerData data = dataStore.get(player);
         long arrived = mineService.renderedLevel(player).orElseGet(() -> Formulas.levelOf(data.totalMined()));
-        Optional<ArrivalBonus.Result> bonus = ArrivalBonus.claim(data, dataStore.server(), arrived);
+        Optional<ArrivalBonus.Result> bonus = ArrivalBonus.claim(data, arrived);
         // ボーナスで累計採掘量が増えた分、坑道を進める（階層が進んだら掘り切った状態にしてケージへ誘導する）
         mineService.syncProgress(player);
         bonus.ifPresent(result -> {

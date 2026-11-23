@@ -22,7 +22,8 @@ public final class Shop {
 
     /** リスナー・{@code /coal shop}・画面の定期更新を登録する。 */
     public static Shop register(CoalClicker plugin) {
-        ShopListener listener = new ShopListener(plugin.dataStore());
+        ShopListener listener = new ShopListener(plugin.dataStore(), plugin.mineService().pickaxe(),
+                new FirstPurchaseEffects(plugin));
         plugin.getServer().getPluginManager().registerEvents(listener, plugin);
         plugin.command().register(new ShopCommand(listener));
         BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {

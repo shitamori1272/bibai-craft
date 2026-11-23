@@ -2,8 +2,10 @@ package io.github.shitamori1272.coalclicker.shop;
 
 import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.data.PlayerData;
+import io.github.shitamori1272.coalclicker.game.PickaxeTier;
 import io.github.shitamori1272.coalclicker.game.Tool;
 import io.github.shitamori1272.coalclicker.game.Upgrade;
+import io.github.shitamori1272.coalclicker.mine.MinerPickaxe;
 import io.github.shitamori1272.coalclicker.number.JapaneseFormat;
 import java.util.Optional;
 import net.kyori.adventure.text.Component;
@@ -22,9 +24,13 @@ import org.bukkit.inventory.Inventory;
 public final class ShopListener implements Listener {
 
     private final DataStore dataStore;
+    private final MinerPickaxe pickaxe;
+    private final FirstPurchaseEffects effects;
 
-    public ShopListener(DataStore dataStore) {
+    public ShopListener(DataStore dataStore, MinerPickaxe pickaxe, FirstPurchaseEffects effects) {
         this.dataStore = dataStore;
+        this.pickaxe = pickaxe;
+        this.effects = effects;
     }
 
     /** ショップ画面を開く。 */
@@ -100,6 +106,8 @@ public final class ShopListener implements Listener {
             player.playSound(player, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.2f);
             if (result.firstPurchase()) {
                 sendExplanation(player, tool);
+                // ショップは開いたまま、後ろで演出を流す
+                effects.play(player, tool);
             }
         } else {
             player.playSound(player, Sound.ENTITY_VILLAGER_NO, 1f, 1f);
@@ -116,6 +124,11 @@ public final class ShopListener implements Listener {
             player.playSound(player, Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
             if (result.firstPurchase()) {
                 sendExplanation(player, upgrade.displayName(), upgrade.explanation(), upgrade.effectDescription());
+            }
+            if (upgrade.kind() == Upgrade.Kind.PICKAXE) {
+                // 坑内で持っているツルハシの素材を上げる
+                pickaxe.refresh(player).ifPresent(tier -> player.sendMessage(Component.text(
+                        "ツルハシが" + PickaxeTier.displayName(tier) + "になりました！", NamedTextColor.GOLD)));
             }
         } else {
             player.playSound(player, Sound.ENTITY_VILLAGER_NO, 1f, 1f);

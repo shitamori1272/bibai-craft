@@ -1,6 +1,7 @@
 package io.github.shitamori1272.coalclicker.data;
 
 import io.github.shitamori1272.coalclicker.game.Tool;
+import io.github.shitamori1272.coalclicker.game.Trophy;
 import io.github.shitamori1272.coalclicker.game.Upgrade;
 import io.github.shitamori1272.coalclicker.number.BigNum;
 import java.math.BigDecimal;
@@ -70,7 +71,7 @@ public final class DataCodec {
         }
         for (Object id : list(root, "upgrades")) {
             // 知らない改良は捨てる
-            if (Upgrade.byId(String.valueOf(id)).isPresent()) {
+            if (Upgrade.byId(String.valueOf(id)).isPresent() || Trophy.isId(String.valueOf(id))) {
                 data.addUpgrade(String.valueOf(id));
             }
         }

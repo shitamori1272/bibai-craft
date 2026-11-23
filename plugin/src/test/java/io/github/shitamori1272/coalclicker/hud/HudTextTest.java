@@ -88,7 +88,8 @@ class HudTextTest {
         assertEquals(new HudText.Entry("発破", "4個（毎秒 387個）"), lines.get(9));
         assertEquals(new HudText.Entry("立坑櫓", "0個（毎秒 0個）"), lines.get(14));
         assertEquals(new HudText.Entry("改良", "1/64"), lines.get(15));
-        assertEquals(7 + 8 + 1, lines.size());
+        assertEquals(new HudText.Entry("トロフィー", "0個（生産 +0%）"), lines.get(16));
+        assertEquals(7 + 8 + 2, lines.size());
     }
 
     @Test

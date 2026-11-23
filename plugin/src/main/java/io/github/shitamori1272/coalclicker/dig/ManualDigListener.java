@@ -47,6 +47,8 @@ import org.bukkit.util.RayTraceResult;
  * 叩いたときは効果音と、切羽の手前に浮かぶ {@code +◯個}（{@link HitPopup}。アクションバーやタイトルとぶつからない）を出す。
  *
  * <p>手掘りできるのは、置いてある坑道の階層が数値上の階層と同じで、掘り切っていないときだけ（{@link DigEngine#face}）。
+ * また、入坑で渡したツルハシ（{@link io.github.shitamori1272.coalclicker.mine.MinerPickaxe}）をメインハンドに
+ * 持っているときだけ数える。持たずに切羽を叩いたら「ツルハシを持って掘ろう」と出し、持ち物になければ渡し直す。
  * 掘り切ってケージを待っているときに坑道の奥（看板・奥の壁）を叩くと、石炭は出ず「ケージで降りよう」と出す。
  *
  * <p><b>叩いた判定</b>：アドベンチャーモードではクライアントがブロックの破壊を始めないので、破壊開始の
@@ -168,7 +170,19 @@ public final class ManualDigListener implements Listener {
             }
             return;
         }
-        if (!mineService.renderer().isFaceBlock(section, meters, block) || !throttle(hitTicks, id, tick, 1)) {
+        if (!mineService.renderer().isFaceBlock(section, meters, block)) {
+            return;
+        }
+        if (!mineService.pickaxe().holds(player)) {
+            if (throttle(hintTicks, id, tick, HINT_INTERVAL_TICKS)) {
+                popup.show(player, center(block), Component.text("ツルハシを持って掘ろう", NamedTextColor.GRAY));
+                if (!mineService.pickaxe().has(player)) {
+                    mineService.pickaxe().give(player);
+                }
+            }
+            return;
+        }
+        if (!throttle(hitTicks, id, tick, 1)) {
             return;
         }
         BlockData broken = block.getBlockData();

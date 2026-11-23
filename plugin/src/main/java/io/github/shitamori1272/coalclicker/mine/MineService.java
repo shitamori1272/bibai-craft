@@ -41,6 +41,7 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.hanging.HangingPlaceEvent;
@@ -74,6 +75,7 @@ public final class MineService implements Listener {
     private final DataStore dataStore;
     private final MineWorld mineWorld;
     private final TunnelRenderer renderer;
+    private final MinerPickaxe pickaxe;
     /** 入坑中（またはログアウト中で、次のログインで地上へ戻す）のプレイヤー。 */
     private final Map<UUID, Session> sessions = new HashMap<>();
     /** 入坑の準備（チャンクの読み込み）を待っているプレイヤー。 */
@@ -104,6 +106,7 @@ public final class MineService implements Listener {
         this.dataStore = dataStore;
         this.mineWorld = mineWorld;
         this.renderer = new TunnelRenderer(mineWorld.world(), this::teleport);
+        this.pickaxe = new MinerPickaxe(dataStore);
         this.patrolTask = Bukkit.getScheduler().runTaskTimer(plugin, this::patrol,
                 PATROL_INTERVAL_TICKS, PATROL_INTERVAL_TICKS);
     }
@@ -111,6 +114,11 @@ public final class MineService implements Listener {
     /** 坑道のブロックを置く係。 */
     public TunnelRenderer renderer() {
         return renderer;
+    }
+
+    /** 坑内で使うツルハシ。入坑で渡し、地上へ戻ると回収する。 */
+    public MinerPickaxe pickaxe() {
+        return pickaxe;
     }
 
     // ---- 入坑・地上へ戻る ----
@@ -169,6 +177,7 @@ public final class MineService implements Listener {
             return;
         }
         player.setGameMode(GameMode.ADVENTURE);
+        pickaxe.give(player);
         player.sendMessage(Component.text("第" + (session.renderedLevel + 1) + "坑道に入坑しました。", NamedTextColor.GOLD)
                 .append(Component.text(" /coal surface で地上へ戻れます", NamedTextColor.GRAY)));
         // 入坑も「着いた」に数える（企画書 4-3）
@@ -316,6 +325,7 @@ public final class MineService implements Listener {
             return false;
         }
         sessions.remove(player.getUniqueId());
+        pickaxe.removeAll(player);
         player.setGameMode(session != null ? session.returnMode : defaultGameMode());
         return true;
     }
@@ -384,6 +394,10 @@ public final class MineService implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        // 坑道の外でツルハシを持っていたら（サーバーが止まった・ほかのプラグインで出たなど）回収する
+        if (!inMineWorld(player)) {
+            pickaxe.removeAll(player);
+        }
         // 坑内でログアウトした人のセッションは残してあるので、ここで地上へ戻す
         if (!sessions.containsKey(player.getUniqueId()) && !inMineWorld(player)) {
             return;
@@ -407,6 +421,7 @@ public final class MineService implements Listener {
     public void onChangedWorld(PlayerChangedWorldEvent event) {
         // ほかのプラグインやコマンドで坑道ワールドから出たら、入坑前のゲームモードに戻す
         if (isMine(event.getFrom())) {
+            pickaxe.removeAll(event.getPlayer());
             Session session = sessions.remove(event.getPlayer().getUniqueId());
             if (session != null) {
                 event.getPlayer().setGameMode(session.returnMode);
@@ -419,7 +434,21 @@ public final class MineService implements Listener {
         Session session = sessions.get(event.getPlayer().getUniqueId());
         if (session != null) {
             event.setRespawnLocation(renderer.arrival(session.section));
+            // 坑内で倒れたときはツルハシを落とさないので、生き返ったら渡し直す
+            Player player = event.getPlayer();
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (player.isOnline() && sectionOf(player).isPresent()) {
+                    pickaxe.give(player);
+                }
+            });
         }
+    }
+
+    /** 坑内で倒れてもツルハシは落とさない（坑道にアイテムを散らかさない・持ち出させない）。 */
+    @EventHandler
+    public void onDeath(PlayerDeathEvent event) {
+        event.getDrops().removeIf(MinerPickaxe::isPickaxe);
+        event.getItemsToKeep().removeIf(MinerPickaxe::isPickaxe);
     }
 
     // ---- 坑内の保護 ----

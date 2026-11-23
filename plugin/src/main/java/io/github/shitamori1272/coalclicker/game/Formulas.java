@@ -107,9 +107,9 @@ public final class Formulas {
         return BigNum.of(Math.pow(TOOL_UPGRADE_FACTOR, toolUpgradeCount(tool, upgrades)));
     }
 
-    /** 全体の倍率 ＝ 全体の改良の積。今は全体の改良がないので 1（あとで足すための入り口）。 */
+    /** 全体の倍率 ＝ トロフィーの倍率（{@link Trophy#multiplier}。1 ＋ 0.05 × トロフィーの数）。 */
     public static BigNum globalMultiplier(Set<String> upgrades) {
-        return BigNum.ONE;
+        return BigNum.of(Trophy.multiplier(upgrades));
     }
 
     /** 深さ倍率 ＝ 1.1^階層番号。 */
@@ -172,13 +172,15 @@ public final class Formulas {
         return countKind(upgrades, Upgrade.Kind.SKILL);
     }
 
-    /** 手掘り 1 回の石炭のうち、毎秒の石炭によらない部分 ＝ 10 × 2^(ツルハシの改良の数)。 */
+    /** 手掘り 1 回の石炭のうち、毎秒の石炭によらない部分 ＝ 10 × 2^(ツルハシの改良の数) × トロフィーの倍率。 */
     public static BigNum clickBase(Set<String> upgrades) {
-        return BigNum.of(CLICK_BASE * Math.pow(PICKAXE_FACTOR, pickaxeUpgradeCount(upgrades)));
+        return BigNum.of(CLICK_BASE * Math.pow(PICKAXE_FACTOR, pickaxeUpgradeCount(upgrades))
+                * Trophy.multiplier(upgrades));
     }
 
     /**
-     * 手掘り 1 回の石炭 ＝ 10 × 2^(ツルハシの改良の数) ＋ 毎秒の石炭 × 0.01 × (熟練の改良の数)。
+     * 手掘り 1 回の石炭 ＝ 10 × 2^(ツルハシの改良の数) × トロフィーの倍率 ＋ 毎秒の石炭 × 0.01 × (熟練の改良の数)。
+     * 毎秒の石炭にはトロフィーの倍率がすでに掛かっている。
      *
      * @param coalPerSecond 今の毎秒の石炭（深さ倍率込み）
      */

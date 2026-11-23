@@ -9,6 +9,7 @@ import io.github.shitamori1272.coalclicker.data.DataStore;
 import io.github.shitamori1272.coalclicker.dig.Digging;
 import io.github.shitamori1272.coalclicker.hud.ActionBarTask;
 import io.github.shitamori1272.coalclicker.hud.StatusCommand;
+import io.github.shitamori1272.coalclicker.hud.TrophyAnnouncer;
 import io.github.shitamori1272.coalclicker.level.CageGuide;
 import io.github.shitamori1272.coalclicker.mine.MineCommand;
 import io.github.shitamori1272.coalclicker.mine.MineService;
@@ -19,6 +20,8 @@ import io.github.shitamori1272.coalclicker.ranking.Leaderboard;
 import io.github.shitamori1272.coalclicker.ranking.Sidebar;
 import io.github.shitamori1272.coalclicker.ranking.TopCommand;
 import io.github.shitamori1272.coalclicker.shop.Shop;
+import io.github.shitamori1272.coalclicker.trophy.TrophyCommand;
+import io.github.shitamori1272.coalclicker.trophy.TrophyListener;
 import io.github.shitamori1272.coalclicker.world.MineWorld;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import java.util.List;
@@ -37,6 +40,7 @@ public final class CoalClicker extends JavaPlugin {
     private CageGuide cageGuide;
     private final BoostService boostService = new BoostService();
     private RichSeam richSeam;
+    private TrophyAnnouncer trophies;
 
     @Override
     public void onEnable() {
@@ -58,6 +62,10 @@ public final class CoalClicker extends JavaPlugin {
         cageGuide = CageGuide.register(this);
         richSeam = RichSeam.register(this, boostService);
         ActionBarTask.start(this, dataStore, mineService);
+        trophies = TrophyAnnouncer.start(this);
+        TrophyListener trophyMenu = new TrophyListener(dataStore);
+        getServer().getPluginManager().registerEvents(trophyMenu, this);
+        command.register(new TrophyCommand(trophyMenu));
         command.register(new StatusCommand(dataStore));
         command.register(new GiveCommand(dataStore));
         command.register(new ResetCommand(dataStore, mineService, boostService));
@@ -77,6 +85,9 @@ public final class CoalClicker extends JavaPlugin {
     public void onDisable() {
         if (sidebar != null) {
             sidebar.stop();
+        }
+        if (trophies != null) {
+            trophies.stop();
         }
         if (shop != null) {
             shop.close();
