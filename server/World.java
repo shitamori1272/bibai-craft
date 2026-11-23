@@ -13,13 +13,16 @@ class World {
             "session.lock", "level.dat_old", ".DS_Store",
             // Paper が書き込むワールド固有の ID。コピーごとに別の ID になるよう原本には含めない。
             "uid.dat");
+    // Paper stores plugin worlds inside the main world; the CoalClicker mine is regenerated, never published.
+    static final Set<Path> generated = Set.of(Path.of("dimensions", "coalclicker", "bibai_mine"));
 
     static void copyWorld(Path from, Path to) throws IOException {
         if (!Files.isRegularFile(from.resolve("level.dat")))
             throw new IOException("level.dat を含むワールドがありません: " + from);
         Files.walkFileTree(from, new SimpleFileVisitor<Path>() {
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                if (!dir.equals(from) && personal.contains(from.relativize(dir).toString()))
+                Path relative = from.relativize(dir);
+                if (!dir.equals(from) && (personal.contains(relative.toString()) || generated.contains(relative)))
                     return FileVisitResult.SKIP_SUBTREE;
                 Files.createDirectories(to.resolve(from.relativize(dir)));
                 return FileVisitResult.CONTINUE;
