@@ -38,3 +38,9 @@ cd plugin
 | `build.gradle.kts` | 依存（`paper-api`）とビルド設定。`minecraftVersion` と `paperBuild` は、サーバーの `start.command` の `version` と `build` に合わせる |
 | `src/main/resources/paper-plugin.yml` | プラグインの定義 |
 | `src/main/java/io/github/shitamori1272/coalclicker/` | ソースコード |
+
+## 美唄駅から採掘を始める
+
+`preview` の美唄駅西口ロータリーに「のるーと美唄」が停車します。歩道側の白いステップから車内に入ると、炭鉱メモリアル公園の「竪坑々口」前に到着します。アーチをくぐると、自分の坑道で採掘を開始・再開できます。地上へ戻るには `/coal surface` を使います。
+
+駅前で試すには `/tp @s 1513.5 -53 1574.5 90 0` を実行してください。バスは市の実証車両をモデルにし、行き先はゲーム用に設定しています。[美唄市の車両案内](https://www.city.bibai.hokkaido.jp/uploaded/attachment/20379.pdf)

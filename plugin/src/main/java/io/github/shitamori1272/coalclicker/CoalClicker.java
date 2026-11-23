@@ -13,6 +13,7 @@ import io.github.shitamori1272.coalclicker.level.CageGuide;
 import io.github.shitamori1272.coalclicker.mine.MineCommand;
 import io.github.shitamori1272.coalclicker.mine.MineService;
 import io.github.shitamori1272.coalclicker.mine.SurfaceCommand;
+import io.github.shitamori1272.coalclicker.mine.SurfaceRoute;
 import io.github.shitamori1272.coalclicker.offline.OfflineListener;
 import io.github.shitamori1272.coalclicker.ranking.Leaderboard;
 import io.github.shitamori1272.coalclicker.ranking.Sidebar;
@@ -45,6 +46,7 @@ public final class CoalClicker extends JavaPlugin {
         dataStore.start();
         mineService = new MineService(this, dataStore, mineWorld);
         getServer().getPluginManager().registerEvents(mineService, this);
+        getServer().getPluginManager().registerEvents(new SurfaceRoute(this, mineService), this);
         command.register(new MineCommand(mineService));
         command.register(new SurfaceCommand(mineService));
         // サブコマンドは各機能がここで command.register(...) する
