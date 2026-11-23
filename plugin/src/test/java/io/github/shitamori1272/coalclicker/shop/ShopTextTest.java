@@ -58,6 +58,38 @@ class ShopTextTest {
     }
 
     @Test
+    void 写真の行は写真のある道具だけに出る() {
+        GameState s = state(Map.of(), Set.of(), 0, 0);
+        for (Tool tool : Tool.values()) {
+            boolean hasPhotoLine = ShopText.toolLore(tool, s, BigNum.ZERO).stream()
+                    .flatMap(l -> l.segments().stream())
+                    .anyMatch(seg -> seg.tone() == ShopText.Tone.PHOTO);
+            assertEquals(ToolPhoto.of(tool).isPresent(), hasPhotoLine, tool.id());
+        }
+    }
+
+    @Test
+    void 写真のある道具は写真の下に場所を空ける() {
+        GameState s = state(Map.of(), Set.of(), 0, 0);
+        List<ShopText.Line> lore = ShopText.toolLore(Tool.DRUM_CUTTER, s, BigNum.ZERO);
+        int photoRow = -1;
+        for (int i = 0; i < lore.size(); i++) {
+            if (!lore.get(i).segments().isEmpty() && lore.get(i).segments().getFirst().tone() == ShopText.Tone.PHOTO) {
+                photoRow = i;
+            }
+        }
+        assertTrue(photoRow >= 0);
+        // 左上・詰め・右上・行頭へ・左下・詰め・右下
+        assertEquals("", lore.get(photoRow).plain());
+        // 高さ 80 → 写真の行を含めて 8 行ぶん＋余白 1 行が空で、その次が解説
+        for (int i = 1; i <= ToolPhoto.rows(); i++) {
+            assertEquals("", lore.get(photoRow + i).plain());
+        }
+        assertEquals(8, ToolPhoto.rows());
+        assertTrue(lore.get(photoRow + ToolPhoto.rows() + 1).plain().startsWith("回転するドラム"));
+    }
+
+    @Test
     void 買える価格は黄色_まとめ買いの見込みも出る() {
         GameState s = state(Map.of(), Set.of(), 0, 0);
         List<ShopText.Line> lore = ShopText.toolLore(Tool.LAMP, s, BigNum.of(400));
